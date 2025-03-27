@@ -1,4 +1,6 @@
 # Fusion of Irregular Multimodal Sensor Data
+Code for the paper "ITNet: Irregular Timeseries Data Fusion with Attention Mechanisms" submitted to FUSION 2025
+
 ## Pre-requisite
 Create a python virtual environment in the way that you want, e.g. :
 ```
