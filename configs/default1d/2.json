@@ -1,0 +1,24 @@
+{
+   "params": {
+      "N": 100,
+      "h": 2,
+      "D": [
+         2
+      ],
+      "n_epochs": 2,
+      "lr": 0.001,
+      "d_qk": 1,
+      "n_layers_qk": 0,
+      "n_layers": 0,
+      "bias": false,
+      "activation": "linear",
+      "measurement_noise_var": [
+         5
+      ],
+      "process_noise_var": 2,
+      "M": 1,
+      "P": [
+         0.5
+      ]
+   }
+}

@@ -1,0 +1,32 @@
+{
+   "params": {
+      "model": {
+         "d_qk": 1,
+         "n_layers_qk": 0,
+         "n_layers": 0,
+         "bias": false,
+         "activation": "linear",
+         "layernorm": false,
+         "init_random": false,
+         "weight_type": "gaussian",
+         "dropout_p": 0,
+         "qk_type": "time"
+      },
+      "training": {
+         "n_epochs": 500,
+         "lr": 0.001
+      },
+      "system": {
+         "h": 2,
+         "process_noise_var_db": 0
+      },
+      "sensors": {
+         "N": 1000,
+         "N_val": 1000,
+         "modalities_dimension": 2,
+         "SMNR_db": 10,
+         "M": 2,
+         "P": 0.6
+      }
+   }
+}

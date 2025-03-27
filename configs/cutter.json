@@ -1,0 +1,29 @@
+{
+    "params": {
+        "model":{
+            "d_qk": [1],
+            "n_layers_qk": [0],
+            "n_layers": [3],
+            "bias": [true],
+            "activation": ["selu"],
+            "layernorm": [false],
+            "d_out": [6],
+            "init_random": [true],
+            "h": [3],
+            "h_dim": [12],
+            "kernel_size":[10]
+        },
+        "data":
+            {
+                "N": [50],
+                "cutter_list": [[1,4]],
+                "n_draws":[2],
+                "batch_size":[1],
+                "spacing":["regular"]
+            },
+            "training":{
+                "n_epochs":[1],
+                "lr":[1e-3]
+            }
+    }
+}

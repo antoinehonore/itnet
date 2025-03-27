@@ -1,0 +1,33 @@
+{
+    "params": {
+        "model":{
+            "d_qk": [6],
+            "qk_type": ["data"],
+            "n_layers_qk": [1],
+            "n_layers": [1],
+            "bias": [true],
+            "activation": ["relu"],
+            "layernorm": [false],
+            "d_out": [1],
+            "init_random": [true],
+            "h_dim": [64],
+            "kernel_size":[3],
+            "weight_type":["gaussian"],
+            "dropout_p":[1e-3]
+        },
+        "data":
+            {
+                "N":            [50],
+                "n_draws":      [2],
+                "batch_size":   [1],
+                "spacing":      ["regular"],
+                "impute":       ["linear"]
+            },
+            "training":{
+                "n_epochs":[40],
+                "lr":[1e-3],
+                "loss":["CE"],
+                "grad_step_every":[16]
+            }
+    }
+}
