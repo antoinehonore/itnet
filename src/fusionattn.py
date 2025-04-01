@@ -17,7 +17,7 @@ def add_one(x, dim=1):
     return out
 
 class PositionalEncoding(torch.nn.Module):
-    def __init__(self, d_model, max_seq_length=10000.0):
+    def __init__(self, d_model, max_seq_length=100.0):
         super(PositionalEncoding, self).__init__()
         self.max_seq_length = max_seq_length
         self.d_model = d_model
@@ -176,7 +176,6 @@ class MultiModalAttention(torch.nn.Module):
         y = causal_dot_product(Q, K, V, t1[0], t2[0])
         self.attn_matrices[modality_name] = torch.zeros(1,1,2,2)
         return y
-        #pass
 
     def causal_scaled_dot_product_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
         tau = self.history_temperature[modality_name].exp()

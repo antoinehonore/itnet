@@ -21,18 +21,17 @@ import socket
 if socket.gethostname()=="cmm0958":
     matplotlib.use('tkagg') 
 else:
-    matplotlib.use('agg') 
+    matplotlib.use('agg')
+
 import matplotlib.pyplot as plt
 from torch.utils.data import Subset
 from src.tihm.data_loader import TIHMDataset
 from datetime import datetime
-
-from sklearn.model_selection import LeaveOneOut,LeaveOneGroupOut,LeavePGroupsOut, GroupKFold
+from sklearn.model_selection import LeaveOneOut,LeaveOneGroupOut,LeavePGroupsOut, GroupKFold, KFold,TimeSeriesSplit
 from torch.utils.data import Dataset, DataLoader
-
 from lightning.pytorch.loggers import TensorBoardLogger
 
-
+from torcheval.metrics.functional import binary_auprc
 import lightning as L
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
@@ -40,80 +39,8 @@ from scipy.signal.windows import gaussian
 from torchmetrics import ConfusionMatrix
 from sklearn.preprocessing import LabelEncoder
 
-"""
-Column 1: Force (N) in X dimension
-Column 2: Force (N) in Y dimension
-Column 3: Force (N) in Z dimension
-Column 4: Vibration (g) in X dimension
-Column 5: Vibration (g) in Y dimension
-Column 6: Vibration (g) in Z dimension
-Column 7: AE-RMS (V) 
-"""
-
 from sklearn.utils.class_weight import compute_class_weight
 
-def plot_spectrogram(ax1, x, kernel_size):
-    fs = 50000/kernel_size
-    T_x = 1 / fs
-    
-    #x = np.sin(2*np.pi*np.cumsum(f_i)*T_x) # the signal
-    
-    g_std = 8  # standard deviation for Gaussian window in samples
-    
-    w = gaussian(50, std=g_std, sym=True)  # symmetric Gaussian window
-    
-    SFT = ShortTimeFFT(w, hop=10, fs=fs, mfft=1024, scale_to='magnitude')
-    
-    
-    
-    #for i,thename in enumerate(columns):
-    N = x.shape[0]
-    
-    t_x = np.arange(N) * T_x  # time indexes for signal
-    
-    f_i = 1 * np.arctan((t_x - t_x[N // 2]) / 2) + 5  # varying frequency
-    
-    Sx = SFT.stft(x)  # perform the STFT
-   
-    t_lo, t_hi = SFT.extent(N)[:2]  # time range of plot
-    
-    ax1.set_title(rf"STFT ({SFT.m_num*SFT.T:g}$\,s$ Gaussian window, " +
-    
-                  rf"$\sigma_t={g_std*SFT.T}\,$s)")
-    
-    ax1.set(xlabel=f"Time $t$ in seconds ({SFT.p_num(N)} slices, " +
-    
-                   rf"$\Delta t = {SFT.delta_t:g}\,$s)",
-    
-            ylabel=f"Freq. $f$ in Hz ({SFT.f_pts} bins, " +
-    
-                   rf"$\Delta f = {SFT.delta_f:g}\,$Hz)",
-    
-            xlim=(t_lo, t_hi))
-    
-    
-    im1 = ax1.imshow(abs(Sx), origin='lower', aspect='auto',
-                     extent=SFT.extent(N), cmap='viridis')
-    
-    ax1.plot(t_x, f_i, 'r--', alpha=.5, label='$f_i(t)$')
-    
-    #fig1.colorbar(im1, label="Magnitude $|S_x(t, f)|$")
-    
-    
-    # Shade areas where window slices stick out to the side:
-    
-    for t0_, t1_ in [(t_lo, SFT.lower_border_end[0] * SFT.T),
-    
-                     (SFT.upper_border_begin(N)[0] * SFT.T, t_hi)]:
-    
-        ax1.axvspan(t0_, t1_, color='w', linewidth=0, alpha=.2)
-    
-    for t_ in [0, N * SFT.T]:  # mark signal borders with vertical line:
-    
-        ax1.axvline(t_, color='y', linestyle='--', alpha=0.5)
-    
-    ax1.legend()
-    return ax1
 
 
 def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues"):
@@ -295,8 +222,8 @@ class lTrainer(L.LightningModule):
         self.val_senspec_figure     = plt.subplots(figsize=(5,3))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
-        self.spectrogram_figure     = [plt.subplots(figsize=(10,6)) for _ in range(4)]
-        self.val_attn_matrix        = {k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
+        #self.spectrogram_figure     = [plt.subplots(figsize=(10,6)) for _ in range(4)]
+        self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
         self.automatic_optimization = False
         self.the_training_step  = 0
 
@@ -327,11 +254,11 @@ class lTrainer(L.LightningModule):
         log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-
+        
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
-        self.log("{}/train".format(self.loss_fun_name), loss,on_epoch=True,batch_size=1, on_step=False)
+        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True,batch_size=1, on_step=False)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
@@ -339,31 +266,38 @@ class lTrainer(L.LightningModule):
 
         yhat = self.model(batch)
         if batch_idx == 0 and (self.logger is not None):
-            for modality_name,(fig,ax) in self.val_attn_matrix.items():
-                A = self.model.fusion_model.estimate_fusion.attn_matrices[modality_name]
-                if A is not None:
-                    ax.cla()
-                    ax.imshow(A[0,0].T, aspect="equal")
-                    ax.set_title("{}: $\\tau={:.03f}$".format(modality_name, self.model.fusion_model.estimate_fusion.history_temperature[modality_name].item()))
-                    ax.set_ylabel("Measurements timeline")
-                    ax.invert_yaxis()
-                    ax.set_xlabel("Predictions timeline")
-                    self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
+            if not (self.val_attn_matrix is None):
+                for modality_name,(fig,ax) in self.val_attn_matrix.items():
+                    A = self.model.fusion_model.estimate_fusion.attn_matrices[modality_name]
+                    if A is not None:
+                        ax.cla()
+                        ax.imshow(A[0,0].T, aspect="equal")
+                        ax.set_title("{}: $\\tau={:.03f}$".format(modality_name, self.model.fusion_model.estimate_fusion.history_temperature[modality_name].item()))
+                        ax.set_ylabel("Measurements timeline")
+                        ax.invert_yaxis()
+                        ax.set_xlabel("Predictions timeline")
+                        self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
         self.val_scores["yhat"].append(yhat.detach().squeeze(0))
-
-    def on_train_epoch_end(self):
-        y = torch.cat(self.train_scores["y"]).squeeze(-1)
-        yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
+    
+    def get_scores(self, y, yhat, suffix=""):
         [tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
         f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")
         sensitivity = tp/(tp+fn)
         specificity =  tn/(tn+fp)
+        auprc = binary_auprc(yhat,y)
+        auroc = torchmetrics.functional.auroc(yhat, y.long(), task='binary')
+        return {"f1score"+suffix: f1score, "sensitivity"+suffix:sensitivity, "specificity"+suffix:specificity, "auprc"+suffix:auprc,"auroc"+suffix:auroc}
+        
+    def on_train_epoch_end(self):
+        y = torch.cat(self.train_scores["y"]).squeeze(-1)
+        yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
+        scores = self.get_scores(y, yhat, suffix="/train")
 
         ax = self.train_senspec_figure[1]
         ax.cla()
-        ax.bar([0, 1], [sensitivity,specificity], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"], alpha=0.5)
+        ax.bar([0, 1], [scores["sensitivity/train"], scores["specificity/train"]], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"], alpha=0.5)
         ax.legend()
         ax.set_ylim([0, 1])
         ax.set_xlim([-2, 3])
@@ -371,7 +305,7 @@ class lTrainer(L.LightningModule):
         if self.logger is not None:
             self.logger.experiment.add_figure("senspec/train", self.train_senspec_figure[0], self.the_training_step)
 
-        self.log_dict({"f1score/train": f1score,"sensitivity/train":sensitivity, "specificity/train":specificity},on_epoch=True,on_step=False,batch_size=1)
+        self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [], "yhat": []}
 
         i = 0
@@ -385,21 +319,18 @@ class lTrainer(L.LightningModule):
         y = torch.cat(self.val_scores["y"]).squeeze(-1)
         yhat = torch.cat(self.val_scores["yhat"]).squeeze(-1)
         
-        [tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
-        f1score = torchmetrics.functional.f1_score(yhat,y,task="binary")
-        sensitivity = tp/(tp+fn)
-        specificity =  tn/(tn+fp)
+        scores = self.get_scores(y, yhat, suffix="/val")
 
         ax = self.val_senspec_figure[1]
         ax.cla()
-        ax.bar([0,1],[sensitivity,specificity], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
+        ax.bar([0,1],[scores["sensitivity/val"], scores["specificity/val"]], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
         ax.legend()
         ax.set_ylim([0,1])
         ax.set_xlim([-2,3])
 
         if self.logger is not None:
             self.logger.experiment.add_figure("senspec/val", self.val_senspec_figure[0], self.the_training_step)
-            self.log_dict({"f1score/val": f1score, "sensitivity/val":sensitivity, "specificity/val":specificity},on_epoch=True,on_step=False,batch_size=1)#, "spec/val":specificity, "sen/val":sensitivity})#, "mse/val": loss_val})
+            self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)#, "spec/val":specificity, "sen/val":sensitivity})#, "mse/val": loss_val})
         
         self.val_scores = {"y": [], "yhat": []}
 
@@ -425,7 +356,7 @@ def main(args):
     torch.set_num_threads(4)
     seed = 12345
     torch.manual_seed(seed)
-    np.random.seed(2*seed)
+    np.random.seed(seed)
     
     torch.set_float32_matmul_precision('medium')
     plot = args.plot
@@ -507,9 +438,37 @@ def main(args):
     
     model_params["init_tau"] = torch.diff(data[a_patid]["timelines"]["Back Door"]).max().item()*5
     
-    for fold_idx, (train_index, val_index) in enumerate(GroupKFold(n_splits=5).split(dataset,groups=groups)):
-        training_set = Subset(dataset, train_index)
-        val_set = Subset(dataset, val_index)
+    def patient_timesplit(patid, d, n_splits=5):
+        
+        indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
+        out_tr = {k:  dict(d) for k in indices.keys()}
+        out_val = {k:  dict(d) for k in indices.keys()}
+        for k in indices.keys():
+            out_tr[k]["inference_timeline"] = out_tr[k]["inference_timeline"][indices[k][0]]
+            out_tr[k]["targets"] = out_tr[k]["targets"][indices[k][0]]
+            out_val[k]["inference_timeline"] = out_val[k]["inference_timeline"][indices[k][1]]#tr_inference_timeline[i]
+            out_val[k]["targets"] = out_val[k]["targets"][indices[k][1]]
+
+        return out_tr, out_val
+    
+    data_split = None
+    all_training_data = {}
+    all_validation_data = {}
+    for patid, d in dataset.data.items():
+        if d["inference_timeline"].shape[0]>5:
+            patient_training, patient_validation = patient_timesplit(patid,d)
+            all_training_data = {**all_training_data,**patient_training}
+            all_validation_data = {**all_validation_data,**patient_validation}
+
+    training_dataset = TheDataset(all_training_data)
+    validation_dataset = TheDataset(all_validation_data)
+
+    tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+
+    for fold_idx, (train_index, val_index) in enumerate(zip(tr_fold_indices,val_fold_indices)):#enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
+        training_set = Subset(training_dataset, train_index)
+        val_set = Subset(validation_dataset, val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True)
         val_dataloader = DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
@@ -524,7 +483,7 @@ def main(args):
         
         log_every_n_steps = len(train_dataloader)
         check_val_every_n_epoch = 1
-        trainer = L.Trainer(max_epochs=n_epochs,logger=logger,log_every_n_steps=log_every_n_steps,  
+        trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, # max_steps=len(training_set)*n_epochs,
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=False, enable_checkpointing=False)
         
@@ -537,7 +496,8 @@ def main(args):
         
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
         results_val =    trainer.validate(ltrainer, dataloaders=val_dataloader)
-        results_test =   trainer.validate(ltrainer, dataloaders=test_dataloader)
+        #results_test =   trainer.validate(ltrainer, dataloaders=test_dataloader)
+        results_test = []
 
         results = [results_train, results_val, results_test]
 
