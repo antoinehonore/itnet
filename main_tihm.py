@@ -73,8 +73,6 @@ def plot_spectrogram(ax1, x, kernel_size):
     
     f_i = 1 * np.arctan((t_x - t_x[N // 2]) / 2) + 5  # varying frequency
     
-    
-    
     Sx = SFT.stft(x)  # perform the STFT
    
     t_lo, t_hi = SFT.extent(N)[:2]  # time range of plot
@@ -232,7 +230,6 @@ class Predictor(torch.nn.Module):
     def __init__(self, hparams):
         super(Predictor, self).__init__()
         self.hparams = hparams
-
         self.fusion_model = FusionAttn(hparams)
     
     def forward(self, batch):
@@ -493,7 +490,7 @@ def main(args):
         # The model removes the time information from the data when computing the values, because the time info is used only to compute the attention weights 
         modalities_dimension["v"] = {m: d - 2 for m,d in data_dimensions.items()}
 
-    elif model_params["qk_type"]=="data": # Attention weight computed from the whole data
+    elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
         modalities_dimension["k"] = {m: d for m, d in data_dimensions.items()}
         modalities_dimension["v"] = {m: d for m, d in data_dimensions.items()}
 
