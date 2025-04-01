@@ -14,8 +14,25 @@ def add_one(x, dim=1):
         out = torch.cat([torch.ones(x.shape[:-1]+(1,),device=x.device),-x],dim=-1)
     return out
 
+class PositionalEncoding(torch.nn.Module):
+    def __init__(self, d_model, max_seq_length=10000.0):
+        super(PositionalEncoding, self).__init__()
+        self.max_seq_length = max_seq_length
+        self.d_model = d_model
+        #self.register_buffer('pe', pe.unsqueeze(0))
+
+    def forward(self, x):
+        """x is a time vector of size (N,T). 
+        Returns a (N,T,d_model) embedding of the time vector"""
+        pe = torch.zeros(x.shape[0], x.shape[1], self.d_model)
+
+        div_term = torch.exp(torch.arange(0, self.d_model, 2).float() * -(math.log(self.max_seq_length) / self.d_model))
+        pe[:, :, 0::2] = torch.sin(x.unsqueeze(-1) * div_term.unsqueeze(0).unsqueeze(0))
+        pe[:, :, 1::2] = torch.cos(x.unsqueeze(-1) * div_term.unsqueeze(0).unsqueeze(0))
+        return pe
+
 class MultiModalAttention(torch.nn.Module):
-    def __init__(self, modalities_dimension, d_out, d_qk, ssm=False, L=1, n_layers_qk=None,bias=True,
+    def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
                  n_layers=0, activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0):
         super(MultiModalAttention,self).__init__()
         self.M = len(modalities_dimension["k"])
@@ -30,7 +47,6 @@ class MultiModalAttention(torch.nn.Module):
         self.feature_map_k = partial(add_one, dim=0)
         self.n_layers_qk = n_layers_qk if not (n_layers_qk is None) else n_layers
         self.init_random = init_random
-        self.ssm = ssm
 
         self.d_in_q = self.modalities_dimension["q"]
         self.W_Q = None
@@ -41,7 +57,7 @@ class MultiModalAttention(torch.nn.Module):
                     layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
         
         if not self.init_random:
-            self.W_Q.linear_layers[0].weight=torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
+            self.W_Q.linear_layers[0].weight = torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
         
         self.W_K = torch.nn.ModuleDict({mname: MLP(d_in, [d_qk]*self.n_layers_qk, d_qk, activation, bias=False,dropout_p=dropout_p,
                                             layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
@@ -76,18 +92,24 @@ class MultiModalAttention(torch.nn.Module):
 
     def forward(self, batch, pool=None):
         """
-        batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
+        Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
         """
+        t1 = batch["reference"][:, 0, :, -1]
 
         input_query = batch["reference"]
         Q = self.W_Q(input_query)
-        if self.qk_type != "data":
+        if self.qk_type == "time":
             Q = self.feature_map_q(Q)
         
-        t1 = batch["reference"][:, 0, :, -1]
+        elif self.qk_type == "data+PE":
+            t1_pe = PositionalEncoding(self.d_qk)(t1)
+            Q = Q + t1_pe
 
+        # Will be used for masking the attention matrix
         the_func = partial(self.forward_modality, t1=t1, Q=Q)
-        batch_noreference = {k: v for k, v in batch.items() if k!="reference"}
+        
+        batch_noreference = {k: v for k, v in batch.items() if k != "reference"}
+        
         if not (self.pool is None):
             results = self.pool.map(the_func, batch_noreference.items())
         else:
@@ -110,9 +132,13 @@ class MultiModalAttention(torch.nn.Module):
         t2 = X[:, 0, :, -1]
 
         # If all the data should be used to compute Q and K (i.e. the attention weights)
-        if self.qk_type == "data":
+        if "data" in self.qk_type:
             input_keys = X
             K = self.W_K[modality_name](input_keys)
+            if "PE" in self.qk_type:
+                t2_pe = PositionalEncoding(self.d_qk)(t2)
+                K = K + t2_pe
+            
             input_values = X
 
         # If we only use the timestamps to compute thte attention weights
@@ -124,14 +150,17 @@ class MultiModalAttention(torch.nn.Module):
             input_values = X[...,:-2]
 
 
+
         if not (self.W_V is None):
             V = self.W_V[modality_name](input_values)
         else:
             V = input_values
         
 
-
-        causal_dot_product_func = self.my_causal_scaled_dot_product_attention
+        if self.attention_type=="vanilla":
+            causal_dot_product_func = self.causal_scaled_dot_product_attention
+        elif self.attention_type=="linear":
+            causal_dot_product_func = self.causal_scaled_linear_attention
 
         out = causal_dot_product_func(Q, K, V, t1, t2, modality_name=modality_name)
         
@@ -139,9 +168,11 @@ class MultiModalAttention(torch.nn.Module):
             print(modality_name, "NANs !!!")
             sys.exit(1)
         return out
-
-    def my_causal_scaled_dot_product_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
-        tau=self.history_temperature[modality_name].exp()
+    
+    def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
+        
+    def causal_scaled_dot_product_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
+        tau = self.history_temperature[modality_name].exp()
         
         A = self.get_weights(Q, K, t1, t2, tau=tau)
         
