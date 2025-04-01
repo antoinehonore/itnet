@@ -4,6 +4,8 @@ from functools import partial
 #from src.causal_product import causal_dot_product,causal_dot_product_ref
 import math
 import sys
+from src.causal_product import causal_dot_product
+
 
 def elu_feature_map(x):
     return torch.nn.functional.elu(x) + 1
@@ -33,13 +35,14 @@ class PositionalEncoding(torch.nn.Module):
 
 class MultiModalAttention(torch.nn.Module):
     def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
-                 n_layers=0, activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0):
+                 n_layers=0, activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0,attention_type="vanilla"):
         super(MultiModalAttention,self).__init__()
         self.M = len(modalities_dimension["k"])
         self.d_v = d_out
         self.d_out = d_out
         self.weight_type = weight_type
         self.qk_type = qk_type
+        self.attention_type = attention_type
 
         self.modalities_dimension = modalities_dimension
         self.d_qk = d_qk
@@ -158,11 +161,11 @@ class MultiModalAttention(torch.nn.Module):
         
 
         if self.attention_type=="vanilla":
-            causal_dot_product_func = self.causal_scaled_dot_product_attention
+            causal_attn_func = self.causal_scaled_dot_product_attention
         elif self.attention_type=="linear":
-            causal_dot_product_func = self.causal_scaled_linear_attention
+            causal_attn_func = self.causal_scaled_linear_attention
 
-        out = causal_dot_product_func(Q, K, V, t1, t2, modality_name=modality_name)
+        out = causal_attn_func(Q, K, V, t1, t2, modality_name=modality_name)
         
         if out.isnan().any():
             print(modality_name, "NANs !!!")
@@ -170,7 +173,11 @@ class MultiModalAttention(torch.nn.Module):
         return out
     
     def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
-        
+        y = causal_dot_product(Q, K, V, t1[0], t2[0])
+        self.attn_matrices[modality_name] = torch.zeros(1,1,2,2)
+        return y
+        #pass
+
     def causal_scaled_dot_product_attention(self, Q, K, V, t1, t2,  eps=1e-6, modality_name="ref1"):
         tau = self.history_temperature[modality_name].exp()
         
@@ -234,7 +241,7 @@ class FusionAttn(torch.nn.Module):
                 d_qk=self.d_qk, n_layers=hparams["n_layers"], activation=hparams["activation"],
                 n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], 
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
-                weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],qk_type=hparams["qk_type"]
+                weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],qk_type=hparams["qk_type"],attention_type=hparams["attention_type"]
             )
 
     def forward(self, calX, pool=None,only_last=True):
