@@ -439,8 +439,10 @@ def main(args):
     model_params["init_tau"] = torch.diff(data[a_patid]["timelines"]["Back Door"]).max().item()*5
     
     def patient_timesplit(patid, d, n_splits=5):
+        istart = max([0, d["inference_timeline"].shape[0]-7*5])
+        #indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
         
-        indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
+        indices = {patid+"_{}".format(i+1): (np.concatenate([np.arange(istart),istart+indexes[0]]),istart+indexes[1]) for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"][istart:]))}
         out_tr = {k:  dict(d) for k in indices.keys()}
         out_val = {k:  dict(d) for k in indices.keys()}
         for k in indices.keys():

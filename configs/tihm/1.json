@@ -1,15 +1,8 @@
 {
    "params": {
-      "data": {
-         "N": 50,
-         "n_draws": 2,
-         "batch_size": 1,
-         "spacing": "regular",
-         "impute": "linear"
-      },
       "model": {
-         "d_qk": 6,
-         "qk_type": "data",
+         "d_qk": 8,
+         "qk_type": "data+PE",
          "n_layers_qk": 1,
          "n_layers": 1,
          "bias": true,
@@ -17,16 +10,19 @@
          "layernorm": false,
          "d_out": 1,
          "init_random": true,
-         "h_dim": 64,
-         "kernel_size": 3,
          "weight_type": "gaussian",
-         "dropout_p": 0.001
+         "dropout_p": 0.001,
+         "attention_type": "linear"
+      },
+      "data": {
+         "batch_size": 1,
+         "impute": "none"
       },
       "training": {
-         "n_epochs": 40,
+         "n_epochs": 150,
          "lr": 0.001,
          "loss": "CE",
-         "grad_step_every": 16
+         "grad_step_every": 8
       }
    }
 }
