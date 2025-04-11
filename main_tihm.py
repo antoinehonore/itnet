@@ -1,15 +1,13 @@
 import pandas as pd
 import torch
 import numpy as np 
-import torchmetrics
-
-from torchmetrics.classification import BinaryStatScores
 
 from src.fusionattn import FusionAttn
 import torch.nn.functional as F
 import torch.nn as nn
-from src.feature_extractor import FeatureExtractor
 from utils_tbox.utils_tbox import read_pklz, write_pklz
+from src.tihm.mydata import TheDataset
+from src.tihm.trainer import lTrainer
 
 import os 
 
@@ -28,71 +26,24 @@ from torch.utils.data import Subset
 from src.tihm.data_loader import TIHMDataset
 from datetime import datetime
 from sklearn.model_selection import LeaveOneOut,LeaveOneGroupOut,LeavePGroupsOut, GroupKFold, KFold,TimeSeriesSplit
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from torcheval.metrics.functional import binary_auprc
 import lightning as L
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 
-from torchmetrics import ConfusionMatrix
 from sklearn.preprocessing import LabelEncoder
 
-from sklearn.utils.class_weight import compute_class_weight
+
+groups_stems = ["heart_rate", "respiratory_rate", "Body Temperature", 
+                "Body weight", "Diastolic blood pressure","Heart rate",
+                "O/E - muscle mass", "Skin Temperature", "Systolic blood pressure","Total body water"]
 
 
-
-def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues"):
-    """
-    Plots a confusion matrix using matplotlib.
-    
-    Args:
-        y_true (list or array): Ground truth labels.
-        y_pred (list or array): Predicted labels.
-        class_names (list, optional): List of class names.
-        normalize (bool, optional): Whether to normalize the confusion matrix.
-        cmap (str, optional): Color map for the heatmap.
-    """
-    # Convert labels to tensor if they are not
-    if not isinstance(y_true, torch.Tensor):
-        y_true = torch.tensor(y_true)
-    if not isinstance(y_pred, torch.Tensor):
-        y_pred = torch.tensor(y_pred)
-    
-    # Ensure class names are available
-    if class_names is None:
-        class_names=["0","1"]
-    
-    # Compute confusion matrix
-    num_classes = len(class_names)
-    confmat = ConfusionMatrix(task="binary", num_classes=num_classes)
-    cm = confmat(y_pred, y_true).cpu().numpy()
-    
-    # Normalize if required
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
-    
-    # Plot using matplotlib
-    cax = ax.matshow(cm, cmap=cmap)
-
-    # Set labels
-    ax.set_xticks(np.arange(len(class_names)))
-    ax.set_yticks(np.arange(len(class_names)))
-    ax.set_xticklabels(class_names)
-    ax.set_yticklabels(class_names)
-    ax.set_xlabel("Predicted Labels")
-    ax.set_ylabel("True Labels")
-    ax.set_title("Confusion Matrix")
-    
-    # Annotate each cell with its value
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}", ha='center', va='center', color='black')
-    
-    return ax
 
 def get_modalities(df, timeline, target, groups, ref_date=None):
+    """Group data variables according to "groups"""
     DTYPE = torch.float32
     assert(timeline.shape[0] == df.shape[0])
     if ref_date is None:
@@ -107,13 +58,13 @@ def get_modalities(df, timeline, target, groups, ref_date=None):
     for modality_name, vv in groups.items():
         theidx = (df[vv].isna().sum(1) == 0).values
         idx[modality_name]        = torch.from_numpy(theidx).to(dtype=DTYPE)
-        calX[modality_name]       = {"data":torch.from_numpy(df[vv][theidx].values).to(dtype=DTYPE)}
+        calX[modality_name]       = torch.from_numpy(df[vv][theidx].values).to(dtype=DTYPE)
         timelines[modality_name]  = torch.from_numpy((pd.to_datetime(timeline[theidx])-ref_date).total_seconds().values/3600/24).to(dtype=DTYPE)
         if timelines[modality_name].shape[0]>0:
             diff =  torch.diff(timelines[modality_name], prepend=torch.tensor([timelines[modality_name][0].item()])).to(dtype=DTYPE)
-            calX[modality_name]["data"] = torch.cat([calX[modality_name]["data"], diff.unsqueeze(-1), timelines[modality_name].unsqueeze(-1)],axis=1).to(dtype=DTYPE)
+            calX[modality_name] = torch.cat([calX[modality_name], diff.unsqueeze(-1), timelines[modality_name].unsqueeze(-1)],axis=1).to(dtype=DTYPE)
         else:# No data at all ?
-            calX[modality_name]["data"] = torch.zeros((1,len(groups[modality_name])+2))
+            calX[modality_name] = torch.zeros((1,len(groups[modality_name])+2))
             timelines[modality_name]= torch.zeros((1))+inference_timeline[0]
 
     return {"timelines": timelines, "calX":calX, "idx":idx,
@@ -137,7 +88,11 @@ def to_dict(train_dataset,test_dataset):
         test_patients[patid]["target"] = test_dataset.test_target[idx]
     return train_patients, test_patients
 
-def get_data(patients,ref_date,groups,columns):
+def get_data(patients,groups,columns, ref_date=None):
+    if ref_date is None:
+        ref_date = min([min(v["timeline"]) for v in patients.values()])
+        ref_date = datetime(year=ref_date.year,month=ref_date.month,day=ref_date.day)
+        
     data = {}
     for i, (patid, v) in enumerate(patients.items()):
         if i == -1:
@@ -151,7 +106,10 @@ def get_data(patients,ref_date,groups,columns):
         target = v["target"][:, [1]] >= 1
         df = pd.DataFrame(data=thedata, columns=columns)
         data[patid] = get_modalities(df, timeline, target, groups,ref_date=ref_date)
-    return data
+    a_patid = list(data.keys())[0]
+    data_dimensions = {m: data[a_patid]["calX"][m].shape[1] for m in data[a_patid]["calX"].keys()}
+
+    return data, data_dimensions, ref_date
 
 class Predictor(torch.nn.Module):
     def __init__(self, hparams):
@@ -163,188 +121,71 @@ class Predictor(torch.nn.Module):
         #thefeatures = self.feature_extractor(batch)
         #thefeatures["reference"] = batch["inference_timeline"].unsqueeze(-1)
         thefeatures = {}
-        thefeatures["reference"] = {"data": batch["inference_timeline"].T.unsqueeze(0).unsqueeze(0)}
-        thefeatures = {**thefeatures,**{m: {"data":v["data"].unsqueeze(1)} for m,v in batch["calX"].items()}}
+        thefeatures["reference"] = batch["inference_timeline"].T.unsqueeze(0).unsqueeze(0)
+        thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["calX"].items()}}
         yhat = self.fusion_model(thefeatures)
         yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
-def get_mu_sigma(batches,theindexes):
-    mu=0. 
-    sigma=0.
-    for i in theindexes:
-        y = batches[i]["Y"]
-        mu += y.mean(0)
-        sigma += y.std(0)
-    return mu/len(theindexes), sigma/len(theindexes)
+def get_modality_dimensions(data_dimensions, model_params):
+    modalities_dimension = {}
+    modalities_dimension["q"] = 1
 
-def normalize(batches,theindexes,mu,sigma):
-    for i in theindexes:
-        batches[i]["Y"]=(batches[i]["Y"]-mu)/sigma
+    if model_params["qk_type"]=="time": # Only the time column will be used to compute the attention weights
+        modalities_dimension["k"] = {m: 1   for m in data_dimensions.keys()}
+        # The model removes the time information from the data when computing the values, because the time info is used only to compute the attention weights 
+        modalities_dimension["v"] = {m: d - 2 for m,d in data_dimensions.items()}
 
-class TheDataset(Dataset):
-    def __init__(self, data, device="cpu"):
-        self.patids = list(data.keys())
-        self.data = data#{cutter_no: {m:data[cutter_no]["calX"][m].to(device=device)for m in data[cutter_no]["calX"].keys()} for cutter_no in data.keys()}
-        self.mu=None
-        self.sigma=None
-        self.device = device
-        y = torch.cat([d["targets"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
-        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.unique(y), y=y)).to(dtype=torch.float32) #/len(self.data.values())
+    elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
+        modalities_dimension["k"] = {m: d for m, d in data_dimensions.items()}
+        modalities_dimension["v"] = {m: d for m, d in data_dimensions.items()}
+    return modalities_dimension
+
+def get_variable_groups(train_dataset):
+        
+    variable_groups = {k: [v for v in train_dataset.feature_names if k in v] for k in groups_stems}
+    others = {v:[v] for v in train_dataset.feature_names if not v in list(set( sum(list(variable_groups.values()),[]) ))}
+    if len(others) > 0:
+        variable_groups = {**variable_groups, **others}
+    return variable_groups
+
+
+def patient_timesplit(patid, d, n_splits=5):
+    istart = max([0, d["inference_timeline"].shape[0]-7*5])
+    ### indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
     
-    def __len__(self):
-        return len(self.patids)
+    indices = {patid+"_{}".format(i+1): (np.concatenate([np.arange(istart), istart+indexes[0]]), istart+indexes[1]) for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"][istart:]))}
+    out_tr = {k:  dict(d) for k in indices.keys()}
+    out_val = {k:  dict(d) for k in indices.keys()}
+    for k in indices.keys():
+        out_tr[k]["inference_timeline"] = out_tr[k]["inference_timeline"][indices[k][0]]
+        out_tr[k]["targets"] = out_tr[k]["targets"][indices[k][0]]
+        out_val[k]["inference_timeline"] = out_val[k]["inference_timeline"][indices[k][1]]#tr_inference_timeline[i]
+        out_val[k]["targets"] = out_val[k]["targets"][indices[k][1]]
 
-    def __getitem__(self, i):
-        thedata = self.data[self.patids[i]]
-        thedata["class_weights"] = self.class_weights#[thedata["targets"].int()]
+    return out_tr, out_val
 
-        return thedata
 
-class lTrainer(L.LightningModule):
-    def __init__(self, model=None, hparams=None):
-        super(lTrainer, self).__init__()
-        self.model = model
-        self.save_hyperparameters(hparams)
+def get_tr_val_index_lists(data):
+    all_training_data = {}
+    all_validation_data = {}
+    for patid, d in data.items():
+        if d["inference_timeline"].shape[0]>5:
+            patient_training, patient_validation = patient_timesplit(patid, d)
+            all_training_data = {**all_training_data,**patient_training}
+            all_validation_data = {**all_validation_data,**patient_validation}
 
-        self.val_scores = {"y":[],"yhat":[]}
-        self.train_scores = {"y":[],"yhat":[]}
-        self.loss_fun_name = hparams["training"]["loss"] 
+    training_dataset = TheDataset(all_training_data)
+    validation_dataset = TheDataset(all_validation_data)
 
-        if self.loss_fun_name == "CE":
-            self.loss_fun = torch.nn.functional.cross_entropy
-        
-        elif self.loss_fun_name == "MSE":
-            self.loss_fun = torch.nn.functional.mse_loss
+    tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    return training_dataset, validation_dataset, zip(tr_fold_indices, val_fold_indices)
 
-        self.train_recon_figure     = plt.subplots(figsize=(10,6))
-        self.val_recon_figure       = plt.subplots(figsize=(10,6))
-        self.val_senspec_figure     = plt.subplots(figsize=(5,3))
-        self.train_senspec_figure   = plt.subplots(figsize=(5,3))
-
-        #self.spectrogram_figure     = [plt.subplots(figsize=(10,6)) for _ in range(4)]
-        self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
-        self.automatic_optimization = False
-        self.the_training_step  = 0
-
-    def on_train_start(self):
-        self.logger.log_hyperparams(self.hparams, 
-        {"mse/val": torch.nan, "mse/train": torch.nan})
-
-        self.val_scores = {"y":   [],   "yhat": []}
-        self.train_scores = {"y": [],   "yhat": []}
-    
-    def compute_loss(self,batch):
-        y = batch["targets"]
-        yhat = self.model(batch)
-
-        y_n = y.squeeze(0).long()
-        self.train_scores["y"].append(y.squeeze(0))
-        self.train_scores["yhat"].append(yhat.detach().squeeze(0))
-        if self.loss_fun_name == "CE":
-            yhat = torch.cat([1-yhat,yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
-        sample_weights = batch["class_weights"][0][y_n]
-        loss = (self.loss_fun(yhat.squeeze(0), y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
-        return loss
-
-    def training_step(self, batch, batch_idx, dataloader_idx=0):
-        opt = self.optimizers()
-        loss = 0.0
-        self.the_training_step += 1
-        log_dict = {}
-        loss = self.compute_loss(batch)
-        self.manual_backward(loss)
-        
-        if self.the_training_step % self.hparams["training"]["grad_step_every"]:
-            opt.step()
-            opt.zero_grad()
-        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True,batch_size=1, on_step=False)
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        y = batch["targets"]
-        y_n = y
-
-        yhat = self.model(batch)
-        if batch_idx == 0 and (self.logger is not None):
-            if not (self.val_attn_matrix is None):
-                for modality_name,(fig,ax) in self.val_attn_matrix.items():
-                    A = self.model.fusion_model.estimate_fusion.attn_matrices[modality_name]
-                    if A is not None:
-                        ax.cla()
-                        ax.imshow(A[0,0].T, aspect="equal")
-                        ax.set_title("{}: $\\tau={:.03f}$".format(modality_name, self.model.fusion_model.estimate_fusion.history_temperature[modality_name].item()))
-                        ax.set_ylabel("Measurements timeline")
-                        ax.invert_yaxis()
-                        ax.set_xlabel("Predictions timeline")
-                        self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
-
-        self.val_scores["y"].append(y.squeeze(0))
-        self.val_scores["yhat"].append(yhat.detach().squeeze(0))
-    
-    def get_scores(self, y, yhat, suffix=""):
-        [tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
-        f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")
-        sensitivity = tp/(tp+fn)
-        specificity =  tn/(tn+fp)
-        auprc = binary_auprc(yhat,y)
-        auroc = torchmetrics.functional.auroc(yhat, y.long(), task='binary')
-        return {"f1score"+suffix: f1score, "sensitivity"+suffix:sensitivity, "specificity"+suffix:specificity, "auprc"+suffix:auprc,"auroc"+suffix:auroc}
-        
-    def on_train_epoch_end(self):
-        y = torch.cat(self.train_scores["y"]).squeeze(-1)
-        yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
-        scores = self.get_scores(y, yhat, suffix="/train")
-
-        ax = self.train_senspec_figure[1]
-        ax.cla()
-        ax.bar([0, 1], [scores["sensitivity/train"], scores["specificity/train"]], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"], alpha=0.5)
-        ax.legend()
-        ax.set_ylim([0, 1])
-        ax.set_xlim([-2, 3])
-        
-        if self.logger is not None:
-            self.logger.experiment.add_figure("senspec/train", self.train_senspec_figure[0], self.the_training_step)
-
-        self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = {"y": [], "yhat": []}
-
-        i = 0
-        ax = self.train_recon_figure[1]
-        ax.cla()
-        plot_confusion_matrix(ax, y, yhat)
-        if self.logger is not None:
-            self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
-
-    def on_validation_epoch_end(self):
-        y = torch.cat(self.val_scores["y"]).squeeze(-1)
-        yhat = torch.cat(self.val_scores["yhat"]).squeeze(-1)
-        
-        scores = self.get_scores(y, yhat, suffix="/val")
-
-        ax = self.val_senspec_figure[1]
-        ax.cla()
-        ax.bar([0,1],[scores["sensitivity/val"], scores["specificity/val"]], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
-        ax.legend()
-        ax.set_ylim([0,1])
-        ax.set_xlim([-2,3])
-
-        if self.logger is not None:
-            self.logger.experiment.add_figure("senspec/val", self.val_senspec_figure[0], self.the_training_step)
-            self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)#, "spec/val":specificity, "sen/val":sensitivity})#, "mse/val": loss_val})
-        
-        self.val_scores = {"y": [], "yhat": []}
-
-        #i=0
-        #ax = self.val_recon_figure[1]
-        #ax.cla()
-        #plot_confusion_matrix(ax,y,yhat)
-        #if self.logger is not None:
-        #    self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
-
-    def configure_optimizers(self):
-        optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
-                lr=self.hparams["training"]['lr'])
-        return optim
+def init_tau(data):
+    """A value for $\\tau$ in the attention kernels"""
+    example_patient_id = list(data.keys())[0]
+    return torch.diff(data[example_patient_id]["timelines"]["Back Door"]).max().item()*5
 
 def main(args):
     cfg_fname = args.i
@@ -364,16 +205,15 @@ def main(args):
     show = args.show
     debug = False
 
-    #torch.autograd.set_detect_anomaly(True)
-
     with open(cfg_fname,"r") as fp:
         hparams = json.load(fp)["params"]
     
-    lr = "linear"   ###=1e-3
     n_epochs = hparams["training"]["n_epochs"]
+    
+    model_params = hparams["model"]
+
 
     # loading dataset
-
     # Please change the path with the path of your dataset
     DPATH = 'data/tihm/Dataset/'
     TEST_START = "2019-06-23"
@@ -385,95 +225,39 @@ def main(args):
         impute = {}
 
     train_dataset = TIHMDataset(
-        root=DPATH, train=True, normalise="global", n_days=n_days,**impute, TEST_START=TEST_START#"2019-06-23"
+        root=DPATH, train=True, normalise="global", n_days=n_days, **impute, TEST_START=TEST_START#"2019-06-23"
     )
 
     test_dataset = TIHMDataset(
         root=DPATH, train=False, normalise="global", n_days=n_days,**impute, TEST_START=TEST_START#"2019-06-23"
     )
     
-    train_patients, test_patients = to_dict(train_dataset,test_dataset)
-    groups_stems = ["heart_rate", "respiratory_rate", "Body Temperature", 
-                    "Body weight", "Diastolic blood pressure","Heart rate",
-                    "O/E - muscle mass", "Skin Temperature", "Systolic blood pressure","Total body water"]
+    train_patients, test_patients = to_dict(train_dataset, test_dataset)
 
-    variable_groups = {k: [v for v in train_dataset.feature_names if k in v] for k in groups_stems}
-    others = {v:[v] for v in train_dataset.feature_names if not v in list(set( sum(list(variable_groups.values()),[]) ))}
-    if len(others) > 0:
-        variable_groups = {**variable_groups, **others}
-    
-    ref_date = min([min(v["timeline"]) for v in train_patients.values()])
-    ref_date = datetime(year=ref_date.year,month=ref_date.month,day=ref_date.day)
-    
-    data = get_data(train_patients, ref_date, variable_groups, train_dataset.feature_names)
-    test_data = get_data(test_patients, ref_date, variable_groups, test_dataset.feature_names)
+    variable_groups = get_variable_groups(train_dataset)
 
-    a_patid = list(data.keys())[0]
-    
-    model_params = hparams["model"]
-    data_dimensions = {m:   data[a_patid]["calX"][m]["data"].shape[1] for m in data[a_patid]["calX"].keys()}
+    data, data_dimensions, ref_date = get_data(train_patients, variable_groups, train_dataset.feature_names)
+    test_data, _, _ = get_data(test_patients, variable_groups, test_dataset.feature_names, ref_date=ref_date)
 
-    modalities_dimension = {}
-    modalities_dimension["q"] = 1
-
-    if model_params["qk_type"]=="time": # Only the time column will be used to compute the attention weights
-        modalities_dimension["k"] = {m: 1   for m in data_dimensions.keys()}
-        # The model removes the time information from the data when computing the values, because the time info is used only to compute the attention weights 
-        modalities_dimension["v"] = {m: d - 2 for m,d in data_dimensions.items()}
-
-    elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
-        modalities_dimension["k"] = {m: d for m, d in data_dimensions.items()}
-        modalities_dimension["v"] = {m: d for m, d in data_dimensions.items()}
+    model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     dataset = TheDataset(data)
     
     test_dataset = TheDataset(test_data)
     test_dataloader = DataLoader(test_dataset, batch_size=hparams["data"]["batch_size"], shuffle=False)
 
-    groups = dataset.patids
+    model_params["init_tau"] = init_tau(data)
+    
+    training_dataset, validation_dataset, tr_val_index_lists = get_tr_val_index_lists(dataset.data)
+
     all_fold_results = []
 
-    model_params["modalities_dimension"] = modalities_dimension
-    #{"reference":1, **{m: data_dimensions[m] if model_params["qk_type"]=="data" else data_dimensions[m]-2 for m in  data_dimensions.keys()}}
-    
-    model_params["init_tau"] = torch.diff(data[a_patid]["timelines"]["Back Door"]).max().item()*5
-    
-    def patient_timesplit(patid, d, n_splits=5):
-        istart = max([0, d["inference_timeline"].shape[0]-7*5])
-        #indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
-        
-        indices = {patid+"_{}".format(i+1): (np.concatenate([np.arange(istart),istart+indexes[0]]),istart+indexes[1]) for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"][istart:]))}
-        out_tr = {k:  dict(d) for k in indices.keys()}
-        out_val = {k:  dict(d) for k in indices.keys()}
-        for k in indices.keys():
-            out_tr[k]["inference_timeline"] = out_tr[k]["inference_timeline"][indices[k][0]]
-            out_tr[k]["targets"] = out_tr[k]["targets"][indices[k][0]]
-            out_val[k]["inference_timeline"] = out_val[k]["inference_timeline"][indices[k][1]]#tr_inference_timeline[i]
-            out_val[k]["targets"] = out_val[k]["targets"][indices[k][1]]
-
-        return out_tr, out_val
-    
-    data_split = None
-    all_training_data = {}
-    all_validation_data = {}
-    for patid, d in dataset.data.items():
-        if d["inference_timeline"].shape[0]>5:
-            patient_training, patient_validation = patient_timesplit(patid,d)
-            all_training_data = {**all_training_data,**patient_training}
-            all_validation_data = {**all_validation_data,**patient_validation}
-
-    training_dataset = TheDataset(all_training_data)
-    validation_dataset = TheDataset(all_validation_data)
-
-    tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-    val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-
-    for fold_idx, (train_index, val_index) in enumerate(zip(tr_fold_indices,val_fold_indices)):#enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
-        training_set = Subset(training_dataset, train_index)
-        val_set = Subset(validation_dataset, val_index)
+    for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): #enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
+        training_set = Subset(training_dataset, fold_train_index)
+        val_set = Subset(validation_dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True)
-        val_dataloader = DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+        val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
         
         log_dir = "lightning_logs"
 

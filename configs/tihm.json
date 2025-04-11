@@ -12,7 +12,9 @@
             "init_random": [true],
             "weight_type":["gaussian"],
             "dropout_p":[1e-3],
-            "attention_type": ["linear"]
+            "attention_type": ["linear"],
+            "data_augmentation_pdrop":[0.5],
+            "data_augmentation_n":[4]
         },
         "data":
             {

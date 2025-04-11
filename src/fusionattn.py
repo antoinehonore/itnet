@@ -12,7 +12,7 @@ def elu_feature_map(x):
 
 def add_one(x, dim=1):
     out = torch.cat([x,torch.ones(x.shape[:-1]+(1,),device=x.device)],dim=-1)
-    if dim==0:
+    if dim == 0:
         out = torch.cat([torch.ones(x.shape[:-1]+(1,),device=x.device),-x],dim=-1)
     return out
 
@@ -218,6 +218,8 @@ class FusionAttn(torch.nn.Module):
         self.hparams = hparams  
         self.M = len(hparams["modalities_dimension"])
         self.d_out = hparams["d_out"] #if "d_out" in hparams.keys() else hparams["h"] + hparams["h"]
+        self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
+        self.data_augmentation_n = hparams["data_augmentation_n"]
         
         self.d_v = self.d_out
         
@@ -248,25 +250,15 @@ class FusionAttn(torch.nn.Module):
         calX is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
 
-        #timelines = [X[1][-1] for k,X in calX.items() if k!= "reference"]
-        #assert(all([t[-1]==timelines[0][-1] for t in timelines]))
-
-        #latest_union_timeline = timelines[0][[-1]]
-        #latest_union_timeline = calX["reference"]
-        
-        #new_inputs = {}
-        
-        # The reference sequence is only the time at which to predict
-        #if only_last:
-        #    new_inputs["reference"] = latest_union_timeline.unsqueeze(0).unsqueeze(0).unsqueeze(-1)
-        #else:
-        #new_inputs["reference"] = latest_union_timeline
-        
-        # Concatenate data and timeline
-        #for (k,data) in calX.items():
-        #    if k!="reference":
-        #        new_inputs[k] = calX[k]
-
-        yhat = self.estimate_fusion( {m: calX[m]["data"] for m in calX.keys()} )
-        
+        thedata = {m: drop(calX[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else calX[m]for m in calX.keys()}
+        yhat = self.estimate_fusion( thedata )
         return yhat
+
+def drop(x, p, n):
+    """Create n copies of x with a fraction p of time samples randomly dropped"""
+    xout = x
+    if p>0:
+        T = x.shape[2]
+        n_keep = max([1,int(T*(1-p))])
+        xout = torch.cat([x[:,:,torch.randperm(T)[:n_keep],:] for _ in range(n)])
+    return xout
