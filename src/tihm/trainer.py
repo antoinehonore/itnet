@@ -10,9 +10,9 @@ from torcheval.metrics.functional import binary_auprc
 import numpy as np
 
 class lTrainer(L.LightningModule):
-    def __init__(self, model=None, hparams=None):
+    def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
-        self.model = model
+        self.model_params=hparams["model"]
         self.save_hyperparameters(hparams)
 
         self.val_scores = {"y":[],"yhat":[]}
@@ -30,11 +30,18 @@ class lTrainer(L.LightningModule):
         self.val_senspec_figure     = plt.subplots(figsize=(5,3))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
-        #self.spectrogram_figure     = [plt.subplots(figsize=(10,6)) for _ in range(4)]
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
         self.automatic_optimization = False
         self.the_training_step  = 0
+        self.model = model
 
+    def configure_model(self):
+
+        if self.model is not None:
+            return
+
+        #self.model = Predictor(self.model_params)  ###.to(device)
+        
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
@@ -66,12 +73,12 @@ class lTrainer(L.LightningModule):
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
-        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True,batch_size=1, on_step=False)
+        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True, batch_size=1, on_step=False)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
         y_n = y
-
+        
         yhat = self.model(batch)
         if batch_idx == 0 and (self.logger is not None):
             if not (self.val_attn_matrix is None):

@@ -71,6 +71,7 @@ def get_modalities(df, timeline, target, groups, ref_date=None):
             "inference_timeline":inference_timeline,"targets":targets}
 
 def to_dict(train_dataset,test_dataset):
+    """Group data per patient"""
     train_patients = {}
     for patid in np.unique(train_dataset.train_patient_id):
         train_patients[patid] = {}
@@ -124,7 +125,7 @@ class Predictor(torch.nn.Module):
         thefeatures["reference"] = batch["inference_timeline"].T.unsqueeze(0).unsqueeze(0)
         thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["calX"].items()}}
         yhat = self.fusion_model(thefeatures)
-        yhat = torch.nn.functional.sigmoid(yhat)
+        #yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):
@@ -264,8 +265,7 @@ def main(args):
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
 
-        model = Predictor(model_params)  ###.to(device)
-        ltrainer = lTrainer(model=model, hparams=hparams)
+        ltrainer = lTrainer(model=Predictor(hparams["model"]), hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)
         check_val_every_n_epoch = 1
@@ -278,7 +278,7 @@ def main(args):
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
-        outputfname = os.path.join(log_dir, os.path.dirname(exp_name), "results.pklz.fold{}".format(fold_idx))
+        outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
         results_val =    trainer.validate(ltrainer, dataloaders=val_dataloader)
@@ -294,8 +294,8 @@ def main(args):
         
         if debug:
             break
-
-    outputfname = os.path.join(log_dir, os.path.dirname(exp_name), "results.pklz")
+    
+    outputfname = os.path.join(log_dir, exp_name, "results.pklz")
     write_pklz(outputfname, all_fold_results)
 
 

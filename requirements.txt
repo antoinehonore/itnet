@@ -1,6 +1,6 @@
 git+https://gitlab.com/antoinehonore/utils_tbox.git
 git+https://gitlab.com/antoinehonore/utils_plots.git
-torch==2.4.1
+torch
 matplotlib
 pandas
 openpyxl
