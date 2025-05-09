@@ -1,0 +1,11 @@
+*__pycache__*
+.vscode/
+external/
+data/
+pyenv/
+envpy
+lightning_logs
+notebooks/
+*.sif
+*.dir/
+
