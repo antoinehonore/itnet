@@ -9,7 +9,7 @@ edit:
 	sudo singularity shell --writable env.dir/
 
 build:
-	sudo rm -rf env.dir && sudo singularity build --sandbox env.dir thecontainer.def
+	sudo rm -rf env.dir && sudo singularity build --sandbox env.dir thecontainer.def2
 
 pkg:
 	sudo singularity build --force env.sif env.dir/

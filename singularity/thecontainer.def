@@ -9,15 +9,20 @@ From: continuumio/anaconda3
 
 %files
     ../requirements.txt /requirements.txt
+    ../pyenv/lib/python3.12/site-packages/fast_transformers/cross_causal_product/cross_causal_product_cuda.cpython-312-x86_64-linux-gnu.so cross_causal_product_cuda.cpython-312-x86_64-linux-gnu.so
+    ../pyenv/lib/python3.12/site-packages/fast_transformers/causal_product/causal_product_cuda.cpython-312-x86_64-linux-gnu.so causal_product_cuda.cpython-312-x86_64-linux-gnu.so
 
 %post
      apt-get update
-     apt-get install -y build-essential jq make
+     apt-get install -y build-essential jq make 
      # Install jupyter notebook
      /opt/conda/bin/conda install jupyter -y --quiet
      mkdir /opt/notebooks
      apt-get autoremove -y
      apt-get clean
      pip install -r /requirements.txt
-     pip install pip install git+https://github.com/antoinehonore/myfast-transformers.git
+     pip install git+https://github.com/antoinehonore/myfast-transformers.git
+     cp /cross_causal_product_cuda.cpython-312-x86_64-linux-gnu.so /opt/conda/lib/python3.12/site-packages/fast_transformers/cross_causal_product/cross_causal_product_cuda.cpython-312-x86_64-linux-gnu.so
+     cp /causal_product_cuda.cpython-312-x86_64-linux-gnu.so /opt/conda/lib/python3.12/site-packages/fast_transformers/causal_product/causal_product_cuda.cpython-312-x86_64-linux-gnu.so
+
 

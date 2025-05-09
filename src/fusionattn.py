@@ -137,7 +137,6 @@ class UniModalAttention(torch.nn.Module):
         return self.A.detach()
 
 
-
 class MultiModalAttention(torch.nn.Module):
     def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
                  n_layers=0, activation="relu", 
@@ -176,7 +175,7 @@ class MultiModalAttention(torch.nn.Module):
         
     def forward(self, batch, pool=None):
         """
-        batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
+            batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
         """
         # keep the timeline intact
         t1 = batch["reference"][:, 0, :, -1]
@@ -240,7 +239,6 @@ class FusionAttn(torch.nn.Module):
 
         thedata = {m: drop(batch[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else batch[m] for m in batch.keys()}
         yhat = self.estimate_fusion( thedata )
-        #yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def drop(x, p, n):
