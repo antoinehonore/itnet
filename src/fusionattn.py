@@ -49,7 +49,8 @@ class UniModalAttention(torch.nn.Module):
             self.causal_attn_func = self.causal_scaled_dot_product_attention
         elif attention_type == "linear":
             self.causal_attn_func = self.causal_scaled_linear_attention
-
+        else:
+            raise Exception("Unknown attention_type={}".format(attention_type))
 
         self.W_K = MLP(d_in, [d_qk]*n_layers_qk, d_qk, activation, bias=bias, dropout_p=dropout_p,
                                 layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
@@ -83,7 +84,6 @@ class UniModalAttention(torch.nn.Module):
         
             input_values = X[...,:-2]
 
-
         if not (self.W_V is None):
             V = self.W_V(input_values)
         else:
@@ -97,7 +97,7 @@ class UniModalAttention(torch.nn.Module):
         return out
         
     def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6):
-        y = cross_causal_dot_product(Q, K, V, t1[0], t2[0])
+        y = cross_causal_dot_product(torch.tanh(Q), torch.tanh(K), V, t1[0], t2[0])
         self.attn_matrices = torch.zeros(1,1,2,2)
         return y
 
@@ -140,7 +140,9 @@ class UniModalAttention(torch.nn.Module):
 
 class MultiModalAttention(torch.nn.Module):
     def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
-                 n_layers=0, activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0,attention_type="vanilla"):
+                 n_layers=0, activation="relu", 
+                 layernorm=False, skipconnections=False, skiptemperature=False, 
+                 qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0,attention_type="vanilla"):
         super(MultiModalAttention,self).__init__()
         self.M = len(modalities_dimension["k"])
         self.d_v = d_out
@@ -156,9 +158,11 @@ class MultiModalAttention(torch.nn.Module):
         self.init_random = init_random
 
         self.d_in_q = self.modalities_dimension["q"]
-        self.W_Q = None
-        self.uni_modal_models = torch.nn.ModuleDict({mname: UniModalAttention(d_in, d_qk, self.d_v, self.n_layers_qk, qk_type, activation=activation, dropout_p=dropout_p,
-                                        layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
+        
+        self.uni_modal_models = torch.nn.ModuleDict({mname: UniModalAttention(d_in, d_qk, self.d_v, self.n_layers_qk, qk_type,
+                                 activation=activation, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,
+                                attention_type=attention_type, init_random=init_random,init_tau=init_tau,weight_type=weight_type,
+                                dropout_p=dropout_p,)
                                     for mname,d_in in self.modalities_dimension["k"].items() if mname != "reference"})
         
         self.W_Q = MLP(self.d_in_q, [self.d_qk]*self.n_layers_qk, self.d_qk, activation, bias=False,dropout_p=dropout_p,
@@ -172,7 +176,7 @@ class MultiModalAttention(torch.nn.Module):
         
     def forward(self, batch, pool=None):
         """
-        Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
+        batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
         """
         # keep the timeline intact
         t1 = batch["reference"][:, 0, :, -1]
@@ -202,7 +206,8 @@ class MultiModalAttention(torch.nn.Module):
             yhat = Zout.mean(1)
         return yhat
 
-    
+
+# A wrapper around MultiModalAttention
 class FusionAttn(torch.nn.Module):
     def __init__(self, hparams):
         super(FusionAttn, self).__init__()
@@ -212,37 +217,30 @@ class FusionAttn(torch.nn.Module):
         self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
         self.data_augmentation_n = hparams["data_augmentation_n"]
         
-        self.d_v = self.d_out
-        
         if not ("init_tau" in hparams.keys()):
             hparams["init_tau"] = 1
         
         self.modalities_dimension = hparams["modalities_dimension"]
         self.d_qk = hparams["d_qk"]
-        self.feature_map_q = add_one
-        self.feature_map_k = self.feature_map_q
-        
-        self.W_Q = None
-        self.W_K = None
-        self.W_V = None
         
         self.pool = None
-        new_modalities_dimensions = self.modalities_dimension
        
-        self.estimate_fusion = MultiModalAttention(new_modalities_dimensions, self.d_out, 
+        self.estimate_fusion = MultiModalAttention(self.modalities_dimension, self.d_out, 
                 d_qk=self.d_qk, n_layers=hparams["n_layers"], activation=hparams["activation"],
                 n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], 
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
-                weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],qk_type=hparams["qk_type"],attention_type=hparams["attention_type"]
+                weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],
+                qk_type=hparams["qk_type"],attention_type=hparams["attention_type"]
             )
 
-    def forward(self, calX, pool=None,only_last=True):
+    def forward(self, batch, pool=None,only_last=True):
         """
-        calX is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
+        batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
 
-        thedata = {m: drop(calX[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else calX[m] for m in calX.keys()}
+        thedata = {m: drop(batch[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else batch[m] for m in batch.keys()}
         yhat = self.estimate_fusion( thedata )
+        #yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def drop(x, p, n):

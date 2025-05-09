@@ -46,7 +46,7 @@ class lTrainer(L.LightningModule):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        self.val_scores = {"y":   [],   "yhat": []}
+        self.val_scores =   {"y": [],   "yhat": []}
         self.train_scores = {"y": [],   "yhat": []}
     
     def compute_loss(self,batch):
@@ -57,7 +57,7 @@ class lTrainer(L.LightningModule):
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
         if self.loss_fun_name == "CE":
-            yhat = torch.cat([1-yhat,yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
+            yhat = torch.cat([1-yhat, yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
         sample_weights = batch["class_weights"][0][y_n]
         loss = (self.loss_fun(yhat.squeeze(0), y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
         return loss
