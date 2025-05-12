@@ -172,7 +172,10 @@ class MultiModalAttention(torch.nn.Module):
         
         self.W_out = MLP(self.M*self.d_v, [self.M*self.d_v]*n_layers, d_out, activation, bias=bias,dropout_p=dropout_p,
                                             layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
-    
+        from torch.multiprocessing import Pool
+        
+        self.pool = Pool(processes=len(self.uni_modal_models))
+
     def forward(self, batch, pool=None):
         """
             Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
@@ -190,8 +193,11 @@ class MultiModalAttention(torch.nn.Module):
             Q = Q + t1_pe
         else:
             raise Exception("Unknown qk_type={}".format(self.qk_type))
-
+        # from functorch import combine_state_for_ensemble, vmap
+        # fmodel, params, buffers = combine_state_for_ensemble(list(self.uni_modal_models.values()))
         # Compute individual modality predictions sequentially
+        #funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
+
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
         # Concatenate on the head dimension
@@ -199,7 +205,7 @@ class MultiModalAttention(torch.nn.Module):
 
         if not (self.W_out is None):
             # Flatten all the heads
-            Zout = Zout.transpose(1,2).flatten(start_dim=2,end_dim=3)
+            Zout = Zout.transpose(1,2).flatten(start_dim=2, end_dim=3)
             yhat = self.W_out(Zout)
         else:
             yhat = Zout.mean(1)
