@@ -186,6 +186,17 @@ def init_tau(data):
     example_patient_id = list(data.keys())[0]
     return torch.diff(data[example_patient_id]["timelines"]["Back Door"]).max().item()*5
 
+def get_profiler(profiler):
+    if not (profiler is None): 
+        #num_training_steps = 20
+        from pytorch_lightning.profilers import SimpleProfiler, AdvancedProfiler
+        if profiler=="simple":
+            profiler = SimpleProfiler(filename="{}_profiler_results.txt".format(profiler))
+
+        elif profiler=="advanced":
+            profiler = AdvancedProfiler(filename="{}_profiler_results.txt".format(profiler))
+    return profiler#, num_training_steps
+
 def main(args):
     cfg_fname = args.i
     output_fname = args.o
@@ -244,7 +255,7 @@ def main(args):
     
     test_dataset = TheDataset(test_data)
     test_dataloader = DataLoader(test_dataset, batch_size=hparams["data"]["batch_size"], shuffle=False)
-    
+
     model_params["init_tau"] = init_tau(data)
     
     training_dataset, validation_dataset, tr_val_index_lists = get_tr_val_index_lists(dataset.data)
@@ -267,9 +278,14 @@ def main(args):
         
         log_every_n_steps = len(train_dataloader)
         check_val_every_n_epoch = 1
+        profiler = get_profiler(args.profiler)
+        
+        if not (profiler is None):
+            n_epochs = 2
+            check_val_every_n_epoch=10
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, # max_steps=len(training_set)*n_epochs,
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=False, enable_checkpointing=False)
+                            enable_progress_bar=False, enable_checkpointing=False,profiler=profiler)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
@@ -306,7 +322,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot", action="store_true", help="Plot figures", default=False)
     parser.add_argument("--save", action="store_true", help="save figures", default=False)
     parser.add_argument("--show", action="store_true", help="Show figures", default=False)
-    parser.add_argument("--profile", action="store_true", help="profile epoch", default=False)
+    parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
 
     args = parser.parse_args()
     main(args)
