@@ -172,10 +172,10 @@ class MultiModalAttention(torch.nn.Module):
         
         self.W_out = MLP(self.M*self.d_v, [self.M*self.d_v]*n_layers, d_out, activation, bias=bias,dropout_p=dropout_p,
                                             layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
-        
+    
     def forward(self, batch, pool=None):
         """
-            batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
+            Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
         """
         # keep the timeline intact
         t1 = batch["reference"][:, 0, :, -1]
@@ -190,7 +190,7 @@ class MultiModalAttention(torch.nn.Module):
             Q = Q + t1_pe
         else:
             raise Exception("Unknown qk_type={}".format(self.qk_type))
-
+        
         # Compute individual modality predictions sequentially
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
