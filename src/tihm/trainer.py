@@ -138,7 +138,7 @@ class lTrainer(L.LightningModule):
 
         ax = self.val_senspec_figure[1]
         ax.cla()
-        ax.bar([0, 1], [scores["sensitivity/val"], scores["specificity/val"]], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
+        ax.bar([0, 1], [scores["sensitivity/val"].cpu(), scores["specificity/val"].cpu()], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
         ax.legend()
         ax.set_ylim([0, 1])
         ax.set_xlim([-2, 3])
