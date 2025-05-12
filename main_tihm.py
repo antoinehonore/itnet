@@ -150,7 +150,6 @@ def get_variable_groups(train_dataset):
         variable_groups = {**variable_groups, **others}
     return variable_groups
 
-
 def patient_timesplit(patid, d, n_splits=5):
     istart = max([0, d["inference_timeline"].shape[0]-7*5])
     ### indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
@@ -165,7 +164,6 @@ def patient_timesplit(patid, d, n_splits=5):
         out_val[k]["targets"] = out_val[k]["targets"][indices[k][1]]
 
     return out_tr, out_val
-
 
 def get_tr_val_index_lists(data):
     all_training_data = {}
@@ -246,7 +244,7 @@ def main(args):
     
     test_dataset = TheDataset(test_data)
     test_dataloader = DataLoader(test_dataset, batch_size=hparams["data"]["batch_size"], shuffle=False)
-
+    
     model_params["init_tau"] = init_tau(data)
     
     training_dataset, validation_dataset, tr_val_index_lists = get_tr_val_index_lists(dataset.data)

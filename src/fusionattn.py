@@ -22,12 +22,12 @@ class PositionalEncoding(torch.nn.Module):
         self.d_model = d_model
         #self.register_buffer('pe', pe.unsqueeze(0))
 
-    def forward(self, x):
+    def forward(self, x, device="cpu"):
         """x is a time vector of size (N,T). 
         Returns a (N,T,d_model) embedding of the time vector"""
-        pe = torch.zeros(x.shape[0], x.shape[1], self.d_model)
+        pe = torch.zeros(x.shape[0], x.shape[1], self.d_model,device=device)
 
-        div_term = torch.exp(torch.arange(0, self.d_model, 2).float() * -(math.log(self.max_seq_length) / self.d_model))
+        div_term = torch.exp(torch.arange(0, self.d_model, 2,device=device).float() * -(math.log(self.max_seq_length) / self.d_model))
         pe[:, :, 0::2] = torch.sin(x.unsqueeze(-1) * div_term.unsqueeze(0).unsqueeze(0))
         pe[:, :, 1::2] = torch.cos(x.unsqueeze(-1) * div_term.unsqueeze(0).unsqueeze(0))
         return pe
