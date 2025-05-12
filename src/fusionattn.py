@@ -36,10 +36,10 @@ class PositionalEncoding(torch.nn.Module):
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_in, d_qk, d_v, n_layers_qk, qk_type, bias=True, activation="relu", layernorm=False, 
         skipconnections=False, skiptemperature=False, init_random=False, init_tau=1, 
-        weight_type="gaussian", dropout_p=0, attention_type="vanilla"
+        weight_type="gaussian", dropout_p=0, attention_type="vanilla",name="default"
     ):
         super(UniModalAttention,self).__init__()
-
+        self.name = name
         self.feature_map_k = partial(add_one, dim=0)
         self.qk_type = qk_type
         self.d_qk = d_qk
@@ -92,7 +92,7 @@ class UniModalAttention(torch.nn.Module):
         out = self.causal_attn_func(Q, K, V, t1, t2)
         
         if out.isnan().any():
-            print(modality_name, "NANs !!!")
+            print(self.name, "NANs !!!")
             sys.exit(1)
         return out
         
@@ -190,7 +190,7 @@ class MultiModalAttention(torch.nn.Module):
             Q = Q + t1_pe
         else:
             raise Exception("Unknown qk_type={}".format(self.qk_type))
-        
+
         # Compute individual modality predictions sequentially
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
