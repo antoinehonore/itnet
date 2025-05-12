@@ -281,11 +281,12 @@ def main(args):
         profiler = get_profiler(args.profiler)
         
         if not (profiler is None):
-            n_epochs = 2
+            n_epochs = 9
             check_val_every_n_epoch=10
+            log_every_n_steps = 100000000000
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, # max_steps=len(training_set)*n_epochs,
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=False, enable_checkpointing=False,profiler=profiler)
+                            enable_progress_bar=False, enable_checkpointing=False, profiler=profiler)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
