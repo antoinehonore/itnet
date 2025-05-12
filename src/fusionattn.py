@@ -161,7 +161,7 @@ class MultiModalAttention(torch.nn.Module):
         self.uni_modal_models = torch.nn.ModuleDict({mname: UniModalAttention(d_in, d_qk, self.d_v, self.n_layers_qk, qk_type,
                                  activation=activation, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,
                                 attention_type=attention_type, init_random=init_random,init_tau=init_tau,weight_type=weight_type,
-                                dropout_p=dropout_p,)
+                                dropout_p=dropout_p,name=mname)
                                     for mname,d_in in self.modalities_dimension["k"].items() if mname != "reference"})
         
         self.W_Q = MLP(self.d_in_q, [self.d_qk]*self.n_layers_qk, self.d_qk, activation, bias=False,dropout_p=dropout_p,
