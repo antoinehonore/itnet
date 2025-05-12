@@ -126,7 +126,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, y, yhat)
+        plot_confusion_matrix(ax, y.cpu(), yhat.cpu())
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
 
