@@ -6,8 +6,8 @@ from src.fusionattn import FusionAttn
 import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
-from src.tihm.mydata import TheDataset
-from src.tihm.trainer import lTrainer
+from src.compx.mydata import TheDataset
+from src.compx.trainer import lTrainer
 
 import os 
 
@@ -23,7 +23,6 @@ else:
 
 import matplotlib.pyplot as plt
 from torch.utils.data import Subset
-from src.tihm.data_loader import TIHMDataset
 from datetime import datetime
 from sklearn.model_selection import LeaveOneOut,LeaveOneGroupOut,LeavePGroupsOut, GroupKFold, KFold,TimeSeriesSplit
 from torch.utils.data import DataLoader
@@ -32,7 +31,6 @@ from lightning.pytorch.loggers import TensorBoardLogger
 import lightning as L
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
-
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -47,8 +45,8 @@ class Predictor(torch.nn.Module):
         #thefeatures = self.feature_extractor(batch)
         #thefeatures["reference"] = batch["inference_timeline"].unsqueeze(-1)
         thefeatures = {}
-        thefeatures["reference"] = batch["inference_timeline"].T.unsqueeze(0).unsqueeze(0)
-        thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["calX"].items()}}
+        thefeatures["reference"] = batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0)
+        thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["data"].items() if m!="reference"} }
         yhat = self.fusion_model(thefeatures)
         #yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
@@ -83,20 +81,25 @@ def patient_timesplit(patid, d, n_splits=5):
     return out_tr, out_val
 
 def get_tr_val_index_lists(data):
-    all_training_data = {}
-    all_validation_data = {}
-    for patid, d in data.items():
-        if d["inference_timeline"].shape[0]>5:
-            patient_training, patient_validation = patient_timesplit(patid, d)
-            all_training_data = {**all_training_data,**patient_training}
-            all_validation_data = {**all_validation_data,**patient_validation}
+    patids = np.array(list(data.keys()))
+    #train_idx, val_idx = next()
+    tr_val_index_lists = KFold(5).split(patids)
 
-    training_dataset = TheDataset(all_training_data)
-    validation_dataset = TheDataset(all_validation_data)
+    #all_training_data = {patids[idx]: data[patids[idx]] for idx in train_idx}
+    #all_validation_data = {patids[idx]: data[patids[idx]] for idx in val_idx}
+    #all_validation_data = {}
+    #for patid, d in data.items():
+    #    if d["data"]["reference"].shape[0]>5:
+    #        patient_training, patient_validation = patient_timesplit(patid, d)
+    #        all_training_data = {**all_training_data,**patient_training}
+    #        all_validation_data = {**all_validation_data,**patient_validation}
 
-    tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-    val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-    return training_dataset, validation_dataset, zip(tr_fold_indices, val_fold_indices)
+    #training_dataset = TheDataset(all_training_data)
+    #validation_dataset = TheDataset(all_validation_data)
+
+    #tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    #val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    return tr_val_index_lists#training_dataset, validation_dataset#, zip(tr_fold_indices, val_fold_indices)
 
 def init_tau(data):
     """A value for $\\tau$ in the attention kernels"""
@@ -138,50 +141,33 @@ def main(args):
     n_epochs = hparams["training"]["n_epochs"]
     
     model_params = hparams["model"]
-
+    
+    data_dimensions = {}
 
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
-    TEST_START = "2019-06-23"
-    n_days = 0
+    data = read_pklz(os.path.join(DPATH,"data.pklz"))
+    dataset = TheDataset(data)
+    
     batch_size = 1
     impute = {"imputer": None}
 
     if hparams["data"]["impute"] == "linear":
         impute = {}
 
-    train_dataset = TIHMDataset(
-        root=DPATH, train=True, normalise="global", n_days=n_days, **impute, TEST_START=TEST_START#"2019-06-23"
-    )
-
-    test_dataset = TIHMDataset(
-        root=DPATH, train=False, normalise="global", n_days=n_days,**impute, TEST_START=TEST_START#"2019-06-23"
-    )
-    
-    train_patients, test_patients = to_dict(train_dataset, test_dataset)
-
-    variable_groups = get_variable_groups(train_dataset)
-
-    data, data_dimensions, ref_date = get_data(train_patients, variable_groups, train_dataset.feature_names)
-    test_data, _, _ = get_data(test_patients, variable_groups, test_dataset.feature_names, ref_date=ref_date)
-
+    model_params["init_tau"] = 1#init_tau(data)
+    a_patid = list(data.keys())[0]
+    data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
-    dataset = TheDataset(data)
-    
-    test_dataset = TheDataset(test_data)
-    test_dataloader = DataLoader(test_dataset, batch_size=hparams["data"]["batch_size"], shuffle=False)
-
-    model_params["init_tau"] = init_tau(data)
-    
-    training_dataset, validation_dataset, tr_val_index_lists = get_tr_val_index_lists(dataset.data)
+    tr_val_index_lists = get_tr_val_index_lists(dataset.data)
 
     all_fold_results = []
 
-    for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): #enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
-        training_set = Subset(training_dataset, fold_train_index)
-        val_set = Subset(validation_dataset, fold_val_index)
+    for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
+        training_set = Subset(dataset, fold_train_index)
+        val_set = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True)
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
