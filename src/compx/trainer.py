@@ -63,7 +63,7 @@ class lTrainer(L.LightningModule):
         else:
             yhat = yhat[0]
             sample_weights = 1
-            y_n = y.squeeze(0)[...,[-1]]
+            y_n = y.squeeze(0)
 
         loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
         return loss
@@ -103,7 +103,7 @@ class lTrainer(L.LightningModule):
         self.val_scores["yhat"].append(yhat.detach().squeeze(0))
     
     def get_scores(self, y, yhat, suffix=""):
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat,y[:,-1])    }
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat,y)    }
         
         #[tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
         #f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")

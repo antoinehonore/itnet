@@ -156,7 +156,7 @@ def main(args):
     if hparams["data"]["impute"] == "linear":
         impute = {}
 
-    model_params["init_tau"] = 1#init_tau(data)
+    model_params["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
     data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
@@ -190,7 +190,7 @@ def main(args):
         
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=False, enable_checkpointing=False, profiler=profiler)
+                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 

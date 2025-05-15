@@ -61,9 +61,7 @@ class UniModalAttention(torch.nn.Module):
         temperature_init = init_tau
         self.history_temperature = torch.nn.Parameter(torch.tensor(math.log(temperature_init), dtype=torch.float32),requires_grad=True) 
         
-
     def forward(self, X, t1=None, Q=None):
-
         t2 = X[:, 0, :, -1]
 
         # If all the data should be used to compute Q and K (i.e. the attention weights)
@@ -174,7 +172,7 @@ class MultiModalAttention(torch.nn.Module):
                                             layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
         from torch.multiprocessing import Pool
         
-        self.pool = Pool(processes=len(self.uni_modal_models))
+        #self.pool = Pool(processes=len(self.uni_modal_models))
 
     def forward(self, batch, pool=None):
         """
@@ -196,10 +194,12 @@ class MultiModalAttention(torch.nn.Module):
         # from functorch import combine_state_for_ensemble, vmap
         # fmodel, params, buffers = combine_state_for_ensemble(list(self.uni_modal_models.values()))
         # Compute individual modality predictions sequentially
-        #funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
+        # funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
-
+        #if any( [r.isnan().any() for r in results]):
+        #    print("")
+        
         # Concatenate on the head dimension
         Zout = torch.cat(results, dim=1)
 
