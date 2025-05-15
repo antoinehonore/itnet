@@ -107,7 +107,7 @@ class lTrainer(L.LightningModule):
     def get_scores(self, y, yhat, suffix=""):
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat, y)    }
         thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat,y)
-        thescores["topk2@exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact", k=2)
+        thescores["topk2@exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2@hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
         thescores["topk2@overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
         thescores["topk2@contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
