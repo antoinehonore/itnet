@@ -8,6 +8,8 @@ from torchmetrics.classification import BinaryStatScores
 from torchmetrics import ConfusionMatrix
 from torcheval.metrics.functional import binary_auprc
 import numpy as np
+from torcheval.metrics.functional.classification import topk_multilabel_accuracy
+
 
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
@@ -20,7 +22,7 @@ class lTrainer(L.LightningModule):
         self.loss_fun_name = hparams["training"]["loss"] 
 
         if self.loss_fun_name == "CE":
-            self.loss_fun = torch.nn.functional.cross_entropy
+            self.loss_fun = torch.nn.functional.binary_cross_entropy_with_logits#torch.nn.functional.cross_entropy
         
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
@@ -56,10 +58,11 @@ class lTrainer(L.LightningModule):
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
         if self.loss_fun_name == "CE":
-            yhat = torch.cat([1-yhat, yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
-            sample_weights = batch["class_weights"][0][y_n]
-            y_n = y.squeeze(0).long()
-            yhat = yhat.squeeze(0)
+            #torch.nn.functional.binary_cross_entropy_with_logits(y,yhat)
+            #yhat = torch.cat([1-yhat, yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
+            sample_weights = 1 #batch["class_weights"][0][y_n]
+            y_n = y #.squeeze(0).long()
+            #yhat = yhat.squeeze(0)
         else:
             yhat = yhat[0]
             sample_weights = 1
@@ -80,7 +83,7 @@ class lTrainer(L.LightningModule):
             opt.step()
             opt.zero_grad()
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True, batch_size=1, on_step=False)
-
+    
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
         y_n = y
@@ -103,8 +106,14 @@ class lTrainer(L.LightningModule):
         self.val_scores["yhat"].append(yhat.detach().squeeze(0))
     
     def get_scores(self, y, yhat, suffix=""):
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat,y)    }
-        
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat, y)    }
+        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat,y)
+        thescores["topk2@exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact", k=2)
+        thescores["topk2@hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
+        thescores["topk2@overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
+        thescores["topk2@contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
+        thescores["topk2@belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
+
         #[tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
         #f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")
         #sensitivity = tp/(tp+fn)

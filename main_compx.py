@@ -173,7 +173,6 @@ def main(args):
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
         
         log_dir = "lightning_logs"
-
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
 
