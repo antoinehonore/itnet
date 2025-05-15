@@ -81,7 +81,7 @@ class lTrainer(L.LightningModule):
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
-        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=True, batch_size=1, on_step=False)
+        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]

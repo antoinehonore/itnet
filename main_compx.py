@@ -178,7 +178,7 @@ def main(args):
 
         ltrainer = lTrainer(model=Predictor(hparams["model"]), hparams=hparams)
         
-        log_every_n_steps = len(train_dataloader)
+        log_every_n_steps = len(train_dataloader)/100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
         limit_train_batches=None
@@ -187,6 +187,7 @@ def main(args):
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches=1000
+        
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches)
