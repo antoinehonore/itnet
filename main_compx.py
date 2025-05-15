@@ -192,7 +192,7 @@ def main(args):
                             enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-
+        
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
@@ -200,7 +200,6 @@ def main(args):
         
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
         results_val =    trainer.validate(ltrainer, dataloaders=val_dataloader)
-        #results_test =   trainer.validate(ltrainer, dataloaders=test_dataloader)
         results_test = []
 
         results = [results_train, results_val, results_test]

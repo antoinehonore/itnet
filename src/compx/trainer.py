@@ -38,7 +38,6 @@ class lTrainer(L.LightningModule):
         self.model = model
 
     def configure_model(self):
-
         if self.model is not None:
             return
 
