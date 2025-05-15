@@ -181,18 +181,18 @@ def main(args):
         log_every_n_steps = len(train_dataloader)
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        
+        limit_train_batches=None
         if not (profiler is None):
             n_epochs = 9
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
-        
+            limit_train_batches=1000
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler)
+                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-        
+
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
