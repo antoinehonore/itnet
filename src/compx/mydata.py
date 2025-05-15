@@ -1,0 +1,171 @@
+import torch
+from torch.utils.data import Dataset
+from sklearn.utils.class_weight import compute_class_weight
+import numpy as np
+
+
+class TheDataset(Dataset):
+    def __init__(self, data, device="cpu"):
+        self.patids = list(data.keys())
+        self.data = data  ###  {cutter_no: {m:data[cutter_no]["calX"][m].to(device=device)for m in data[cutter_no]["calX"].keys()} for cutter_no in data.keys()}
+        self.mu = None
+        self.sigma = None
+        self.device = device
+        y = torch.cat([d["targets"] for d in self.data.values()]).squeeze(-1).numpy()[:,-1]#.#tolist()
+        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.unique(y), y=y)).to(dtype=torch.float32) #/len(self.data.values())
+    
+    def __len__(self):
+        return len(self.patids)
+
+    def __getitem__(self, i):
+        thedata = self.data[self.patids[i]]
+        thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
+        return thedata
+
+#Includes
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+#import seaborn as sns
+import os 
+import torch
+
+from utils_tbox.utils_tbox import read_pklz, write_pklz
+
+
+
+
+# We want to create labels for the training data based on the time to event data
+# Labels in validation set are denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively. 
+# If we don't have a failure reported, and the time_step left is less 48 we don't know when the failure will happen, so we will label it as -1. 
+
+def get_class_label(row):
+    #classes denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively
+    if row['time_to_potential_event'] > 48:
+        return 0 #No failure within 48 time steps
+    elif row['time_to_potential_event'] > 24 and row['in_study_repair'] == 1:
+        return 1 #Failure within 48 to 24 time steps
+    elif row['time_to_potential_event'] > 12 and row['in_study_repair'] == 1:
+        return 2 #Failure within 24 to 12 time steps
+    elif row['time_to_potential_event'] > 6 and row['in_study_repair'] == 1:
+        return 3 #Failure within 12 to 6 time steps
+    elif row['time_to_potential_event'] > 0 and row['in_study_repair'] == 1:
+        return 4 #Failure within 6 to 0 time steps
+    else:
+        return -1 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
+    
+def add_class_labels(tte, readouts):
+    # Join the readouts and the time to event data
+    df = pd.merge(readouts, tteTrain, on = 'vehicle_id', how='left').copy()
+
+    #Calculate the time to a failure event
+    df['time_to_potential_event'] = df['length_of_study_time_step'] - df['time_step']
+
+    df['class_label'] = df.apply(get_class_label, axis=1)
+
+    return df
+
+def remove_missing_rows(dd):
+    keep_idx = ~(dd.isna().sum(1).values ==dd.shape[1])
+    #print(dd,dd.isna().sum(1),keep_idx,dd.isna().any().any())
+    dd = dd[keep_idx]
+
+    #assert dd.shape[0]>0, "Empty variable= ".format(keep_idx)
+    assert not (dd.isna().any().any())
+    return dd
+
+
+
+#No labels for test data yet
+def dataframe2X(dd, append_diff=True):
+    dd = remove_missing_rows(dd)
+    t = dd.index.values
+    #print(t.shape)
+    X = dd.values
+    #print(X.shape)
+    if X.shape[0] > 0:
+        l = [X]
+        if append_diff:
+            l+=[np.diff(t,prepend=t[0]).reshape(-1,1)]
+        l+=[t.reshape(-1,1)]
+        X = np.concat(l, axis=1)
+    return torch.from_numpy(X).to(torch.float)
+
+def append_dummy_timeline(dd):
+    return torch.from_numpy(np.concat([dd.values, np.array([[0]]), np.array([[0]])],axis=1)).to(torch.float)
+    
+def readouts2dict(readouts, tte, specs):
+    fname = "data.pklz"
+    if not os.path.exists(fname):
+        all_vehicles =  readouts["vehicle_id"].unique()
+        metadata =      ['vehicle_id', 'time_step']
+        targets =       ["in_study_repair", "time_to_potential_event", "class_label"]
+        num_variables = [["171_0"], ["666_0"], ["427_0"], 
+                         ["837_0"], ["309_0"], ["835_0"], 
+                         ["370_0"], ["100_0"]
+                        ]
+
+        specs_varnames = specificationsTrain.set_index("vehicle_id").columns
+        all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specificationsTrain[varname].unique().tolist()]
+        all_specs_varnames = sorted(all_specs_varnames)
+
+        specs = pd.get_dummies(specs.set_index("vehicle_id"))#.reset_index()
+        specs = specs[all_specs_varnames]  ###.shape
+
+        df = add_class_labels(tte, readouts)
+        df.drop(columns=["length_of_study_time_step"], inplace=True)
+        cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
+                         for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
+                                                    [10, 10, 11, 10, 20, 36]
+                                                   )
+                        }
+
+        the_dict = {v_id:
+                      df[df["vehicle_id"]==v_id].drop(columns=["vehicle_id"]).set_index("time_step")
+                      for v_id in all_vehicles
+                      }
+
+        the_dict = {v_id:
+                       {"data":{
+                            **{num_varname[0]: dataframe2X(df[num_varname])  for num_varname in num_variables},
+                            **{cat_varname:    dataframe2X(df[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()},
+                            **{"specs":        append_dummy_timeline(specs[specs.index == v_id]),
+                              "reference": dataframe2X(df[targets],append_diff=False)[:,-1]
+                              }
+                       },
+                       "targets": dataframe2X(df[targets],append_diff=False)[:,:-1],
+                       }
+                       for v_id,df in the_dict.items()}
+        write_pklz(fname, the_dict)
+    else:
+        the_dict = read_pklz(fname)
+        
+    return the_dict
+
+def get_data(DPATH):
+    root_dir = DPATH#"."
+    #Read the raw data
+    #Train data
+    tteTrain = pd.read_csv(os.path.join(root_dir, 'train_tte.csv'))
+    specificationsTrain = pd.read_csv(os.path.join(root_dir, 'train_specifications.csv'))
+    readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
+
+    mu = readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
+    sigma = readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
+    readoutsTrain = ((readoutsTrain.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+
+    #Validation data
+    labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
+    specificationsValidation = pd.read_csv(os.path.join(root_dir, 'validation_specifications.csv'))
+
+    readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
+    readoutsValidation = ((readoutsValidation.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+
+    #Test data
+    specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
+    readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
+    readoutsTest = ((readoutsTest.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+
+    train_dict = readouts2dict(readoutsTrain,tteTrain,specificationsTrain)
+    return train_dict#read_pklz(os.path.join(DPATH,"data.pklz"))
+        
