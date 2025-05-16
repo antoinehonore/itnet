@@ -46,7 +46,7 @@ class Predictor(torch.nn.Module):
         thefeatures["reference"] = batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0)
         thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["data"].items() if m!="reference"} }
         yhat = self.fusion_model(thefeatures)
-        #yhat = torch.nn.functional.sigmoid(yhat)
+        yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):
@@ -149,7 +149,7 @@ def main(args):
     DPATH = 'data/compx/'
 
     data = get_data(DPATH)
-    data = {k:data[k] for k in list(data.keys())[-5:]}
+    #data = {k:data[k] for k in list(data.keys())[-5:]}
     dataset = TheDataset(data)
     
     batch_size = 1
@@ -196,7 +196,7 @@ def main(args):
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches)
+                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 

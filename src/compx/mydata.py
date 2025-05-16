@@ -53,7 +53,7 @@ def get_class_label2(row):
     elif row['time_to_potential_event'] > 0 and row['in_study_repair'] == 1:
         return 4 #Failure within 6 to 0 time steps
     else:
-        return -1 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
+        return 5 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
     
 def get_class_label(row):
     tmp = torch.zeros(5, dtype=torch.float)
@@ -91,6 +91,8 @@ def add_class_labels(tte, readouts):
     # Calculate the time to a failure event
     df['time_to_potential_event'] = df['length_of_study_time_step'] - df['time_step']
     df['class_label'] = df.apply(get_class_label, axis=1)
+    df['class_label2'] = df.apply(get_class_label2, axis=1)
+
     return df
 
 def remove_missing_rows(dd):
@@ -130,7 +132,7 @@ def readouts2dict(readouts, tte, specs, root_dir="."):
                          ["837_0"], ["309_0"], ["835_0"], 
                          ["370_0"], ["100_0"]
                         ]
-
+        
         specs_varnames = specs.set_index("vehicle_id").columns
         all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
         all_specs_varnames = sorted(all_specs_varnames)
@@ -159,9 +161,10 @@ def readouts2dict(readouts, tte, specs, root_dir="."):
                               "reference": torch.from_numpy(df["class_label"].index.values).to(torch.float)
                               }
                        },
-                       "targets": torch.cat(df["class_label"].values.tolist())#dataframe2X(df[targets],append_diff=False)[:,:-1],
+                       "targets": torch.cat(df["class_label"].values.tolist()),   #dataframe2X(df[targets],append_diff=False)[:,:-1],
+                       "targets2": torch.from_numpy(df["class_label2"].values).to(torch.float)#dataframe2X(df[targets],append_diff=False)[:,:-1],
                        }
-                       for v_id,df in the_dict.items()}
+                    for v_id,df in the_dict.items()}
         write_pklz(fname, the_dict)
     else:
         the_dict = read_pklz(fname)
