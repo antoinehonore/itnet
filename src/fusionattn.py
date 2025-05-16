@@ -197,8 +197,6 @@ class MultiModalAttention(torch.nn.Module):
         # funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
-        #if any( [r.isnan().any() for r in results]):
-        #    print("")
         
         # Concatenate on the head dimension
         Zout = torch.cat(results, dim=1)
