@@ -46,7 +46,7 @@ class Predictor(torch.nn.Module):
         thefeatures["reference"] = batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0)
         thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["data"].items() if m!="reference"} }
         yhat = self.fusion_model(thefeatures)
-        yhat = torch.nn.functional.sigmoid(yhat)
+        #yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):

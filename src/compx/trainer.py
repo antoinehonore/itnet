@@ -10,7 +10,6 @@ from torcheval.metrics.functional import binary_auprc
 import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
 
-
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
@@ -22,7 +21,7 @@ class lTrainer(L.LightningModule):
         self.loss_fun_name = hparams["training"]["loss"] 
 
         if self.loss_fun_name == "BCE":
-            self.loss_fun = torch.nn.functional.binary_cross_entropy#torch.nn.functional.cross_entropy
+            self.loss_fun = torch.nn.functional.binary_cross_entropy_with_logits#torch.nn.functional.cross_entropy
         
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
@@ -45,15 +44,18 @@ class lTrainer(L.LightningModule):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        self.val_scores =   {"y": [],   "yhat": []}
-        self.train_scores = {"y": [],   "yhat": []}
+        self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
+        self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
     
     def compute_loss(self,batch):
         y = batch["targets"]
+        yclass = batch["targets2"]
         yhat = self.model(batch)
 
         self.train_scores["y"].append(y.squeeze(0))
+        self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
+        
         if self.loss_fun_name == "BCE":
             sample_weights = 1 
             y_n = y
@@ -98,11 +100,14 @@ class lTrainer(L.LightningModule):
                         self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
+        self.val_scores["yclass"].append(y.squeeze(0))
         self.val_scores["yhat"].append(yhat.detach().squeeze(0))
     
     def get_scores(self, y, yhat, suffix=""):
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat, y)    }
-        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy(yhat.to(torch.float),y)
+        yhat=yhat.to(torch.float)
+        y=y.to(torch.float)
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.function.sigmoid(yhat), y)    }
+        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)

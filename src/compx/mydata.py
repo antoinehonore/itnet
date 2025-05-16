@@ -132,7 +132,7 @@ def readouts2dict(readouts, tte, specs, root_dir="."):
                          ["837_0"], ["309_0"], ["835_0"], 
                          ["370_0"], ["100_0"]
                         ]
-        
+
         specs_varnames = specs.set_index("vehicle_id").columns
         all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
         all_specs_varnames = sorted(all_specs_varnames)
@@ -168,7 +168,6 @@ def readouts2dict(readouts, tte, specs, root_dir="."):
         write_pklz(fname, the_dict)
     else:
         the_dict = read_pklz(fname)
-        
     return the_dict
 
 def get_data(DPATH):
