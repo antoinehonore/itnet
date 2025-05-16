@@ -154,10 +154,9 @@ def main(args):
     dataset.get_class_weights()
     class_weights = dataset.class_weights
 
-    data = {k: data[k] for k in list(data.keys())[-5:]}
+    data = {k: data[k] for k in list(data.keys())[-len(data.keys())//10:]}
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
-
 
     batch_size = 1
     impute = {"imputer": None}
