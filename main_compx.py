@@ -144,13 +144,12 @@ def main(args):
     import warnings
     warnings.filterwarnings("ignore")
 
-
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
 
-
     data = get_data(DPATH)
+    data = {k:data[k] for k in list(data.keys())[-5:]}
     dataset = TheDataset(data)
     
     batch_size = 1
@@ -192,7 +191,7 @@ def main(args):
             n_epochs = 9
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
-            limit_train_batches=1000
+            limit_train_batches = 1000
         extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":0}
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
