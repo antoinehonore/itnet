@@ -80,6 +80,7 @@ class lTrainer(L.LightningModule):
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
+        yclass = batch["targets2"]
         y_n = y
         
         yhat = self.model(batch)
@@ -101,7 +102,8 @@ class lTrainer(L.LightningModule):
     
     def get_scores(self, y, yhat, suffix=""):
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat, y)    }
-        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy(yhat,y)
+        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy(yhat.to(torch.float),y)
+
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)

@@ -149,7 +149,7 @@ def main(args):
     DPATH = 'data/compx/'
 
     data = get_data(DPATH)
-    #data = {k:data[k] for k in list(data.keys())[-5:]}
+    data = {k:data[k] for k in list(data.keys())[-5:]}
     dataset = TheDataset(data)
     
     batch_size = 1

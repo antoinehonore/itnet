@@ -132,7 +132,7 @@ class UniModalAttention(torch.nn.Module):
         all_nans_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
         if all_nans_idx.any():
             self.A[all_nans_idx] = 0
-        return self.A.detach()
+        return self.A#.detach()
 
 
 class MultiModalAttention(torch.nn.Module):
