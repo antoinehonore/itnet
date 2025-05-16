@@ -47,7 +47,7 @@ class lTrainer(L.LightningModule):
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
     
-    def compute_loss(self,batch):
+    def compute_loss(self, batch):
         y = batch["targets"]
         yclass = batch["targets2"]
         yhat = self.model(batch)
@@ -79,7 +79,7 @@ class lTrainer(L.LightningModule):
             opt.step()
             opt.zero_grad()
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-    
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
         yclass = batch["targets2"]
@@ -100,14 +100,17 @@ class lTrainer(L.LightningModule):
                         self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
-        self.val_scores["yclass"].append(y.squeeze(0))
+        self.val_scores["yclass"].append(yclass.squeeze(0))
         self.val_scores["yhat"].append(yhat.detach().squeeze(0))
     
-    def get_scores(self, y, yhat, suffix=""):
-        yhat=yhat.to(torch.float)
-        y=y.to(torch.float)
+    def get_scores(self, y, yhat, yclass, suffix=""):
+        yhat = yhat.to(torch.float)
+        y = y.to(torch.float)
+        yclass = yclass.to(torch.float)
+        
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
-        thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
+        thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
+        thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
@@ -120,7 +123,9 @@ class lTrainer(L.LightningModule):
     def on_train_epoch_end(self):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
         yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
-        scores = self.get_scores(y, yhat, suffix="/train")
+        yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
+
+        scores = self.get_scores(y, yhat, yclass, suffix="/train")
 
         self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [], "yhat": [], "yclass": []}
@@ -128,8 +133,15 @@ class lTrainer(L.LightningModule):
     def on_validation_epoch_end(self):
         y = torch.cat(self.val_scores["y"]).squeeze(-1)
         yhat = torch.cat(self.val_scores["yhat"]).squeeze(-1)
-        
-        scores = self.get_scores(y, yhat, suffix="/val")
+        yclass = torch.cat(self.val_scores["yclass"]).squeeze(-1)
+
+        scores = self.get_scores(y, yhat, yclass, suffix="/val")
+        i = 0
+        ax = self.train_recon_figure[1]
+        ax.cla()
+        plot_confusion_matrix(ax, y.cpu(), yhat.cpu())
+        if self.logger is not None:
+            self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
         self.val_scores = {"y": [], "yhat": [], "yclass": []}
 
@@ -137,7 +149,6 @@ class lTrainer(L.LightningModule):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
                 lr=self.hparams["training"]['lr'])
         return optim
-
 
 
 

@@ -313,7 +313,6 @@ def main(args):
     outputfname = os.path.join(log_dir, exp_name, "results.pklz")
     write_pklz(outputfname, all_fold_results)
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i",type=str,required=True,help="Input config file")

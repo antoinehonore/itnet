@@ -56,19 +56,24 @@ def get_class_label2(row):
         return 5 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
     
 def get_class_label(row):
-    tmp = torch.zeros(5, dtype=torch.float)
+    tmp = torch.zeros(6, dtype=torch.float)
+    
+    if row['time_to_potential_event'] > 48:
+        tmp[0] = 1
 
     if row['in_study_repair'] == 1: # Failure reported
         if row['time_to_potential_event'] <= 48: #In less than 48 timesteps
-            tmp[0] = 1
-        if row['time_to_potential_event'] <= 24: #In less than 24 timesteps
             tmp[1] = 1
-        if row['time_to_potential_event'] <= 12: #In less than 12 timesteps
+        if row['time_to_potential_event'] <= 24: #In less than 24 timesteps
             tmp[2] = 1
-        if row['time_to_potential_event'] <= 6: #In less than 6 timesteps
+        if row['time_to_potential_event'] <= 12: #In less than 12 timesteps
             tmp[3] = 1
+        if row['time_to_potential_event'] <= 6: #In less than 6 timesteps
+            tmp[4] = 1
+    
     elif row['time_to_potential_event'] <= 48: # Might fail after end of study.
-        tmp[4] = 1
+        tmp[5] = 1
+        
     return tmp.reshape(1,-1)
 
     #classes denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively
