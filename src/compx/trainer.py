@@ -117,7 +117,6 @@ class lTrainer(L.LightningModule):
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
         thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
         thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
-
         return thescores
         
     def on_train_epoch_end(self):
@@ -137,9 +136,9 @@ class lTrainer(L.LightningModule):
 
         scores = self.get_scores(y, yhat, yclass, suffix="/val")
         i = 0
-        ax = self.train_recon_figure[1]
+        ax = self.val_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, y.cpu(), yhat.cpu())
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu())
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
@@ -152,7 +151,7 @@ class lTrainer(L.LightningModule):
 
 
 
-def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues"):
+def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=6):
     """
     Plots a confusion matrix using matplotlib.
     
@@ -171,11 +170,11 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     
     # Ensure class names are available
     if class_names is None:
-        class_names=["0","1"]
+        class_names = [str(i) for i in range(num_classes)]
     
     # Compute confusion matrix
     num_classes = len(class_names)
-    confmat = ConfusionMatrix(task="binary", num_classes=num_classes)
+    confmat = ConfusionMatrix(task="multiclass", num_classes=num_classes)
     cm = confmat(y_pred, y_true).cpu().numpy()
     
     # Normalize if required
