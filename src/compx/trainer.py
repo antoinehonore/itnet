@@ -62,7 +62,9 @@ class lTrainer(L.LightningModule):
         if self.loss_fun_name == "BCE":
             y_n = y
         elif self.loss_fun_name == "CE":
-            y_n = yclass.long()
+            sample_weights=sample_weights[0,:,0]
+            yhat = yhat[0]
+            y_n = yclass.long()[0]
         else:
             yhat = yhat[0]
             y_n = y.squeeze(0)
