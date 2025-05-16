@@ -55,7 +55,7 @@ class lTrainer(L.LightningModule):
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
-        
+
         if self.loss_fun_name == "BCE":
             sample_weights = 1 
             y_n = y
@@ -106,7 +106,7 @@ class lTrainer(L.LightningModule):
     def get_scores(self, y, yhat, suffix=""):
         yhat=yhat.to(torch.float)
         y=y.to(torch.float)
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.function.sigmoid(yhat), y)    }
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
         thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
