@@ -22,6 +22,8 @@ class lTrainer(L.LightningModule):
 
         if self.loss_fun_name == "BCE":
             self.loss_fun = torch.nn.functional.binary_cross_entropy_with_logits#torch.nn.functional.cross_entropy
+        elif self.loss_fun_name == "CE":
+            self.loss_fun = torch.nn.functional.cross_entropy#torch.nn.functional.cross_entropy
         
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
@@ -55,15 +57,16 @@ class lTrainer(L.LightningModule):
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
+        sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
 
         if self.loss_fun_name == "BCE":
-            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
             y_n = y
+        elif self.loss_fun_name == "CE":
+            y_n = yclass.long()
         else:
             yhat = yhat[0]
-            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
             y_n = y.squeeze(0)
-
+        
         loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
         return loss
 
