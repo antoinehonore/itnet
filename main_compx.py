@@ -141,20 +141,23 @@ def main(args):
     model_params = hparams["model"]
     
     data_dimensions = {}
-    import warnings
+    import warnings, socket
     warnings.filterwarnings("ignore")
 
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
+    if  (socket.gethostname() != "cmm09588"):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
+        data = get_data(DPATH)
+        dataset = TheDataset(data)
+        dataset.get_class_weights()
+        class_weights = dataset.class_weights
+        datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//10:]}
+        
+        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall])
+    else:
+        class_weights, data = read_pklz(DPATH + "/datasmall.pklz")
 
-    data = get_data(DPATH)
-    
-    dataset = TheDataset(data)
-    dataset.get_class_weights()
-    class_weights = dataset.class_weights
-
-    data = {k: data[k] for k in list(data.keys())[-len(data.keys())//10:]}
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
 
@@ -162,7 +165,7 @@ def main(args):
     impute = {"imputer": None}
 
     if hparams["data"]["impute"] == "linear":
-        impute = {}
+        impute = {} 
 
     model_params["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
