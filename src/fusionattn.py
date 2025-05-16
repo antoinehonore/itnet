@@ -123,15 +123,18 @@ class UniModalAttention(torch.nn.Module):
         elif self.weight_type=="linear":
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K).abs()
             self.A = (-self.A/tau)
+        else:
+            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K)/math.sqrt(K.shape[-1])
 
         attn_bias = torch.zeros(N,H,T,L, dtype=Q.dtype, device=self.A.device)
         attn_bias.masked_fill_((t1.unsqueeze(-1) < t2.unsqueeze(1)).unsqueeze(1), float("-inf"))
         attn_bias.to(Q.dtype)
+        
         self.A += attn_bias
         self.A = self.A.softmax(-1)
-        all_nans_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
-        if all_nans_idx.any():
-            self.A[all_nans_idx] = 0
+        #all_nans_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
+        #if all_nans_idx.any():
+        #    self.A[all_nans_idx] = 0
         return self.A#.detach()
 
 
