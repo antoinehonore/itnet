@@ -54,7 +54,7 @@ class lTrainer(L.LightningModule):
 
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
-        if self.loss_fun_name == "CE":
+        if self.loss_fun_name == "BCE":
             sample_weights = 1 
             y_n = y
         else:
@@ -108,38 +108,15 @@ class lTrainer(L.LightningModule):
         thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
         thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
 
-        #[tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
-        #f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")
-        #sensitivity = tp/(tp+fn)
-        #specificity =  tn/(tn+fp)
-        #auprc = binary_auprc(yhat,y)
-        #auroc = torchmetrics.functional.auroc(yhat, y.long(), task='binary')
-        return thescores#{"f1score"+suffix: f1score, "sensitivity"+suffix:sensitivity, "specificity"+suffix:specificity, "auprc"+suffix:auprc,"auroc"+suffix:auroc}
+        return thescores
         
     def on_train_epoch_end(self):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
         yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
         scores = self.get_scores(y, yhat, suffix="/train")
 
-        #ax = self.train_senspec_figure[1]
-        #ax.cla()
-        #ax.bar([0, 1], [scores["sensitivity/train"].cpu(), scores["specificity/train"].cpu()], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"], alpha=0.5)
-        #ax.legend()
-        #ax.set_ylim([0, 1])
-        #ax.set_xlim([-2, 3])
-        
-        #if self.logger is not None:
-        #    self.logger.experiment.add_figure("senspec/train", self.train_senspec_figure[0], self.the_training_step)
-
         self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [], "yhat": []}
-
-        #i = 0
-        #ax = self.train_recon_figure[1]
-        #ax.cla()
-        #plot_confusion_matrix(ax, y.cpu(), yhat.cpu())
-        #if self.logger is not None:
-        #    self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
 
     def on_validation_epoch_end(self):
         y = torch.cat(self.val_scores["y"]).squeeze(-1)
@@ -147,17 +124,6 @@ class lTrainer(L.LightningModule):
         
         scores = self.get_scores(y, yhat, suffix="/val")
 
-        #ax = self.val_senspec_figure[1]
-        #ax.cla()
-        #ax.bar([0, 1], [scores["sensitivity/val"].cpu(), scores["specificity/val"].cpu()], label=["Sensitivity", "Specificity"], color=["darkblue","darkred"],alpha=0.5)
-        #ax.legend()
-        #ax.set_ylim([0, 1])
-        #ax.set_xlim([-2, 3])
-
-        #if self.logger is not None:
-        #    self.logger.experiment.add_figure("senspec/val", self.val_senspec_figure[0], self.the_training_step)
-        #    self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)#, "spec/val":specificity, "sen/val":sensitivity})#, "mse/val": loss_val})
-        
         self.val_scores = {"y": [], "yhat": []}
 
     def configure_optimizers(self):
