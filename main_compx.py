@@ -46,7 +46,7 @@ class Predictor(torch.nn.Module):
         thefeatures["reference"] = batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0)
         thefeatures = {**thefeatures,**{m: v.unsqueeze(1) for m,v in batch["data"].items() if m!="reference"} }
         yhat = self.fusion_model(thefeatures)
-        #yhat = torch.nn.functional.sigmoid(yhat)
+        yhat = torch.nn.functional.sigmoid(yhat)
         return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):
@@ -178,16 +178,17 @@ def main(args):
 
         ltrainer = lTrainer(model=Predictor(hparams["model"]), hparams=hparams)
         
-        log_every_n_steps = len(train_dataloader)/100
+        log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches=None
+        limit_train_batches = None
+
         if not (profiler is None):
             n_epochs = 9
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches=1000
-        
+
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches)

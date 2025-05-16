@@ -41,8 +41,6 @@ class lTrainer(L.LightningModule):
         if self.model is not None:
             return
 
-        #self.model = Predictor(self.model_params)  ###.to(device)
-        
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
@@ -57,11 +55,8 @@ class lTrainer(L.LightningModule):
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
         if self.loss_fun_name == "CE":
-            #torch.nn.functional.binary_cross_entropy_with_logits(y,yhat)
-            #yhat = torch.cat([1-yhat, yhat], axis=2).permute(1,2,0)#torch.cat([1-yhat,yhat], axis=2).transpose(0,2)
-            sample_weights = 1 #batch["class_weights"][0][y_n]
-            y_n = y #.squeeze(0).long()
-            #yhat = yhat.squeeze(0)
+            sample_weights = 1 
+            y_n = y
         else:
             yhat = yhat[0]
             sample_weights = 1
@@ -107,11 +102,11 @@ class lTrainer(L.LightningModule):
     def get_scores(self, y, yhat, suffix=""):
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat, y)    }
         thescores["BCE"+ suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat,y)
-        thescores["topk2@exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
-        thescores["topk2@hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
-        thescores["topk2@overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
-        thescores["topk2@contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
-        thescores["topk2@belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
+        thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
+        thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
+        thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
+        thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
+        thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
 
         #[tp, fp, tn, fn, sup] = torchmetrics.functional.classification.binary_stat_scores(yhat,y)
         #f1score = torchmetrics.functional.f1_score(yhat, y, task="binary")
