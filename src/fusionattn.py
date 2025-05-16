@@ -103,9 +103,13 @@ class UniModalAttention(torch.nn.Module):
         tau = self.history_temperature.exp()
         
         A = self.get_weights(Q, K, t1, t2, tau=tau)
-        
+        remove_idx = A.isnan().sum(-1) == A.shape[-1]
+        if remove_idx.any():
+            print("")
         self.attn_matrices = A.detach()
-        # where whole rows are NaNs, there was no data prior to the required prediction time. Replace weights with zeros. 
+        # Were whole rows are NaNs, there was no data prior to the required prediction time. Replace weights with zeros.
+        #V = V[:, :, keep_idx[0,0,:],:]
+        #[:,:,keep_idx[0,0,:],:]
         y = torch.einsum('nhtl,nhlc->nhtc', A, V)
         return y
     
@@ -123,9 +127,9 @@ class UniModalAttention(torch.nn.Module):
         elif self.weight_type=="linear":
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K).abs()
             self.A = (-self.A/tau)
-        
+
         elif self.weight_type == "vanilla":
-            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K)/math.sqrt(K.shape[-1])
+            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
 
         attn_bias = torch.zeros(N,H,T,L, dtype=Q.dtype, device=self.A.device)
         attn_bias.masked_fill_((t1.unsqueeze(-1) < t2.unsqueeze(1)).unsqueeze(1), float("-inf"))
@@ -133,10 +137,11 @@ class UniModalAttention(torch.nn.Module):
         
         self.A += attn_bias
         self.A = self.A.softmax(-1)
-        #all_nans_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
-        #if all_nans_idx.any():
-        #    self.A[all_nans_idx] = 0
-        return self.A#.detach()
+        #remove_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
+        #self.A[remove_idx] = self.A[remove_idx]*0#.data.set_(0.)
+        #if self.A.isnan().any():
+        #    print("")
+        return self.A#, keep_idx
 
 
 class MultiModalAttention(torch.nn.Module):
