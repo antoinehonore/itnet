@@ -178,7 +178,9 @@ def main(args):
         log_dir = "lightning_logs"
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
-        model = torch.compile(Predictor(hparams["model"]))
+        
+        #model = torch.compile(Predictor(hparams["model"]))
+        model = Predictor(hparams["model"])
         ltrainer = lTrainer(model=model, hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)//100
