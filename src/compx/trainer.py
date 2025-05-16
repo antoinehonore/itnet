@@ -123,7 +123,7 @@ class lTrainer(L.LightningModule):
         scores = self.get_scores(y, yhat, suffix="/train")
 
         self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = {"y": [], "yhat": []}
+        self.train_scores = {"y": [], "yhat": [], "yclass": []}
 
     def on_validation_epoch_end(self):
         y = torch.cat(self.val_scores["y"]).squeeze(-1)
@@ -131,7 +131,7 @@ class lTrainer(L.LightningModule):
         
         scores = self.get_scores(y, yhat, suffix="/val")
 
-        self.val_scores = {"y": [], "yhat": []}
+        self.val_scores = {"y": [], "yhat": [], "yclass": []}
 
     def configure_optimizers(self):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
