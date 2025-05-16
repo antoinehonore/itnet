@@ -141,6 +141,9 @@ def main(args):
     model_params = hparams["model"]
     
     data_dimensions = {}
+    import warnings
+    warnings.filterwarnings("ignore")
+
 
     # loading dataset
     # Please change the path with the path of your dataset
@@ -175,8 +178,8 @@ def main(args):
         log_dir = "lightning_logs"
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
-
-        ltrainer = lTrainer(model=Predictor(hparams["model"]), hparams=hparams)
+        model = torch.compile(Predictor(hparams["model"]))
+        ltrainer = lTrainer(model=model, hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
@@ -188,6 +191,7 @@ def main(args):
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches=1000
+        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":0}
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
