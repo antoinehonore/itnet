@@ -149,9 +149,16 @@ def main(args):
     DPATH = 'data/compx/'
 
     data = get_data(DPATH)
-    data = {k:data[k] for k in list(data.keys())[-5:]}
-    dataset = TheDataset(data)
     
+    dataset = TheDataset(data)
+    dataset.get_class_weights()
+    class_weights = dataset.class_weights
+
+    data = {k: data[k] for k in list(data.keys())[-5:]}
+    dataset = TheDataset(data)
+    dataset.class_weights = class_weights
+
+
     batch_size = 1
     impute = {"imputer": None}
 

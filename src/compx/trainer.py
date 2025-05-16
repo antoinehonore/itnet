@@ -57,11 +57,11 @@ class lTrainer(L.LightningModule):
         self.train_scores["yhat"].append(yhat.detach().squeeze(0))
 
         if self.loss_fun_name == "BCE":
-            sample_weights = 1 
+            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
             y_n = y
         else:
             yhat = yhat[0]
-            sample_weights = 1
+            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
             y_n = y.squeeze(0)
 
         loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())

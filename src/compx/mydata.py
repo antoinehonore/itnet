@@ -11,8 +11,12 @@ class TheDataset(Dataset):
         self.mu = None
         self.sigma = None
         self.device = device
-        y = torch.cat([d["targets"] for d in self.data.values()]).squeeze(-1).numpy()[:,-1]#.#tolist()
-        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.unique(y), y=y)).to(dtype=torch.float32) #/len(self.data.values())
+
+        
+    def get_class_weights(self):
+        y = torch.cat([d["targets2"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
+        n_classes = self.data[list(self.data.keys())[0]]["targets"].shape[1]
+        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.arange(n_classes), y=y)).to(dtype=torch.float32) #/len(self.data.values())
     
     def __len__(self):
         return len(self.patids)
@@ -73,7 +77,7 @@ def get_class_label(row):
     
     elif row['time_to_potential_event'] <= 48: # Might fail after end of study.
         tmp[5] = 1
-        
+
     return tmp.reshape(1,-1)
 
     #classes denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively
