@@ -36,7 +36,7 @@ class lTrainer(L.LightningModule):
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
         self.automatic_optimization = False
         self.the_training_step  = 0
-        self.model = torch.compile(model)
+        self.model = model#torch.compile(model)
 
     def configure_model(self):
         if self.model is not None:
@@ -100,8 +100,7 @@ class lTrainer(L.LightningModule):
             ax.plot(plot_data, label=list(norms.keys()))
             ax.legend()
             ax.set_xlabel("time")
-            ax.set_xlabel("Modality contribution (%)")
-            #fig.savefig("test.pdf")
+            ax.set_ylabel("Modality contribution (%)")
 
             self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
