@@ -103,9 +103,9 @@ class UniModalAttention(torch.nn.Module):
         tau = self.history_temperature.exp()
         
         A = self.get_weights(Q, K, t1, t2, tau=tau)
-        remove_idx = A.isnan().sum(-1) == A.shape[-1]
-        if remove_idx.any():
-            print("")
+        #remove_idx = A.isnan().sum(-1) == A.shape[-1]
+        #if remove_idx.any():
+        #    print("")
         self.attn_matrices = A.detach()
         # Were whole rows are NaNs, there was no data prior to the required prediction time. Replace weights with zeros.
         #V = V[:, :, keep_idx[0,0,:],:]
