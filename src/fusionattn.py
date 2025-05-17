@@ -54,11 +54,11 @@ class UniModalAttention(torch.nn.Module):
 
         self.W_K = MLP(d_in, [d_qk]*n_layers_qk, d_qk, activation, bias=bias, dropout_p=dropout_p,
                                 layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
-        self.W_K.compile()    
+        #self.W_K.compile()    
         
         self.W_V = MLP(d_in, [d_qk]*n_layers_qk, d_v, activation, bias=bias, dropout_p=dropout_p,
                                 layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
-        self.W_V.compile()
+        #self.W_V.compile()
                             
         self.attn_matrices = None
         temperature_init = init_tau
