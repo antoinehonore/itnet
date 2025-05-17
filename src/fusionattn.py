@@ -132,18 +132,10 @@ class UniModalAttention(torch.nn.Module):
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
         else:
             raise Exception("Unknown weight_type="+self.weight_type)
-        mask = t1.unsqueeze(-1) >= t2.unsqueeze(1)
-        #attn_bias = torch.zeros(N,H,T,L, dtype=Q.dtype, device=self.A.device)
-        #attn_bias.masked_fill_((t1.unsqueeze(-1) < t2.unsqueeze(1)).unsqueeze(1), float("-inf"))
-        #attn_bias.to(Q.dtype)
         
-        #self.A += attn_bias
+        mask = t1.unsqueeze(-1) >= t2.unsqueeze(1)
         self.A = (self.A* mask).softmax(-1) *mask
-        #remove_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
-        #self.A[remove_idx] = self.A[remove_idx]*0#.data.set_(0.)
-        #if self.A.isnan().any():
-        #    print("")
-        return self.A#, keep_idx
+        return self.A
 
 
 class MultiModalAttention(torch.nn.Module):
@@ -243,7 +235,8 @@ class FusionAttn(torch.nn.Module):
                 n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], 
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                 weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],
-                qk_type=hparams["qk_type"],attention_type=hparams["attention_type"]
+                qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], skipconnections=hparams["skipconnections"],
+                skiptemperature=hparams["skiptemperature"]
             )
 
     def forward(self, batch, pool=None,only_last=True):

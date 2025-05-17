@@ -72,7 +72,6 @@ class lTrainer(L.LightningModule):
         loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
         return loss
 
-
     def training_step(self, batch, batch_idx, dataloader_idx=0):
         opt = self.optimizers()
         loss = 0.0
