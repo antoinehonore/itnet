@@ -30,7 +30,7 @@ class lTrainer(L.LightningModule):
 
         self.train_recon_figure     = plt.subplots(figsize=(10,6))
         self.val_recon_figure       = plt.subplots(figsize=(10,6))
-        self.val_senspec_figure     = plt.subplots(figsize=(14,4))
+        self.val_senspec_figure     = plt.subplots(figsize=(12,4))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
@@ -96,7 +96,13 @@ class lTrainer(L.LightningModule):
         if batch_idx == 0 and (self.logger is not None):
             fig, ax = self.val_senspec_figure
             ax.cla()
-            ax.bar(norms.keys(),norms.values())
+            plot_data = torch.cat(list(norms.values()),dim=-1)[0,0].numpy()
+            ax.plot(plot_data, label=list(norms.keys()))
+            ax.legend()
+            ax.set_xlabel("time")
+            ax.set_xlabel("Modality contribution (%)")
+            #fig.savefig("test.pdf")
+
             self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))

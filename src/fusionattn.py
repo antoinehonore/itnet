@@ -199,8 +199,8 @@ class MultiModalAttention(torch.nn.Module):
         # funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
         results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
-        norms = {mname:r.detach().norm() for mname, r in zip(self.uni_modal_models.keys(), results)}
-        tot_norm = sum(norms.values())
+        norms = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in zip(self.uni_modal_models.keys(), results)}
+        tot_norm = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
         self.norms = {k: 100*v/tot_norm for k,v in norms.items()}
         # Concatenate on the head dimension
         Zout = torch.cat(results, dim=1)
