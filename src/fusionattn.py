@@ -130,13 +130,15 @@ class UniModalAttention(torch.nn.Module):
 
         elif self.weight_type == "vanilla":
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
-
-        attn_bias = torch.zeros(N,H,T,L, dtype=Q.dtype, device=self.A.device)
-        attn_bias.masked_fill_((t1.unsqueeze(-1) < t2.unsqueeze(1)).unsqueeze(1), float("-inf"))
-        attn_bias.to(Q.dtype)
+        else:
+            raise Exception("Unknown weight_type="+self.weight_type)
+        mask = t1.unsqueeze(-1) >= t2.unsqueeze(1)
+        #attn_bias = torch.zeros(N,H,T,L, dtype=Q.dtype, device=self.A.device)
+        #attn_bias.masked_fill_((t1.unsqueeze(-1) < t2.unsqueeze(1)).unsqueeze(1), float("-inf"))
+        #attn_bias.to(Q.dtype)
         
-        self.A += attn_bias
-        self.A = self.A.softmax(-1)
+        #self.A += attn_bias
+        self.A = (self.A* mask).softmax(-1) *mask
         #remove_idx = self.A.isnan().sum(-1) == self.A.shape[-1]
         #self.A[remove_idx] = self.A[remove_idx]*0#.data.set_(0.)
         #if self.A.isnan().any():
