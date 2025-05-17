@@ -41,7 +41,7 @@ class LinearBlock(torch.nn.Module):
             y = tau*self.linear_layer_skip(x) + (1-tau)*y
         return y
 
-class MLP(torch.nn.Module.compile):
+class MLP(torch.nn.Module):
     def __init__(self, input_size, layers_sizes, output_size, activation, dropout_p=0, layernorm=False, skipconnections=False, skiptemperature=False,bias=True):
         super(MLP,self).__init__()
         all_params = dict(dropout_p=dropout_p, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,bias=bias)
