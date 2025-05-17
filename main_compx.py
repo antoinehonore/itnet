@@ -179,7 +179,7 @@ def main(args):
         training_set = Subset(dataset, fold_train_index)
         val_set = Subset(dataset, fold_val_index)
         
-        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True)
+        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
         
         log_dir = "lightning_logs"
