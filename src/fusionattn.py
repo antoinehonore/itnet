@@ -53,10 +53,13 @@ class UniModalAttention(torch.nn.Module):
             raise Exception("Unknown attention_type={}".format(attention_type))
 
         self.W_K = MLP(d_in, [d_qk]*n_layers_qk, d_qk, activation, bias=bias, dropout_p=dropout_p,
-                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature).compile()
+                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
+        self.W_K.compile()    
         
         self.W_V = MLP(d_in, [d_qk]*n_layers_qk, d_v, activation, bias=bias, dropout_p=dropout_p,
-                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature).compile()
+                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
+        self.W_V.compile()
+                            
         self.attn_matrices = None
         temperature_init = init_tau
         self.history_temperature = torch.nn.Parameter(torch.tensor(math.log(temperature_init), dtype=torch.float32),requires_grad=True) 
