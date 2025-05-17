@@ -96,7 +96,7 @@ class lTrainer(L.LightningModule):
         if batch_idx == 0 and (self.logger is not None):
             fig, ax = self.val_senspec_figure
             ax.cla()
-            plot_data = torch.cat(list(norms.values()),dim=-1)[0,0].numpy()
+            plot_data = torch.cat(list(norms.values()),dim=-1)[0,0].cpu().numpy()
             ax.plot(plot_data, label=list(norms.keys()))
             ax.legend()
             ax.set_xlabel("time")
