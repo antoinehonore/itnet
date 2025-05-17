@@ -30,7 +30,7 @@ class lTrainer(L.LightningModule):
 
         self.train_recon_figure     = plt.subplots(figsize=(10,6))
         self.val_recon_figure       = plt.subplots(figsize=(10,6))
-        self.val_senspec_figure     = plt.subplots(figsize=(5,3))
+        self.val_senspec_figure     = plt.subplots(figsize=(14,4))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
@@ -83,26 +83,21 @@ class lTrainer(L.LightningModule):
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
+        
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
         yclass = batch["targets2"]
         y_n = y
-        
         yhat = self.model(batch)
+        norms = self.model.fusion_model.estimate_fusion.norms
+
         if batch_idx == 0 and (self.logger is not None):
-            if not (self.val_attn_matrix is None):
-                for modality_name,(fig,ax) in self.val_attn_matrix.items():
-                    A = self.model.fusion_model.estimate_fusion.attn_matrices[modality_name]
-                    if A is not None:
-                        ax.cla()
-                        ax.imshow(A[0,0].T, aspect="equal")
-                        ax.set_title("{}: $\\tau={:.03f}$".format(modality_name, self.model.fusion_model.estimate_fusion.history_temperature[modality_name].item()))
-                        ax.set_ylabel("Measurements timeline")
-                        ax.invert_yaxis()
-                        ax.set_xlabel("Predictions timeline")
-                        self.logger.experiment.add_figure("attn_figure/{}/val".format(modality_name), fig, self.the_training_step)
+            fig, ax = self.val_senspec_figure
+            ax.cla()
+            ax.bar(norms.keys(),norms.values())
+            self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
         self.val_scores["yclass"].append(yclass.squeeze(0))
