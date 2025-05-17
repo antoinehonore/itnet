@@ -147,7 +147,7 @@ def main(args):
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
-    if  (not (args.small)) or (socket.gethostname() != "cmm0958"):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
+    if  (not (args.small)):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
         data = get_data(DPATH)
         dataset = TheDataset(data)
         dataset.get_class_weights()
