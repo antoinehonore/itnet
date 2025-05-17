@@ -181,7 +181,6 @@ class MultiModalAttention(torch.nn.Module):
         
         self.W_out = MLP(self.M*self.d_v, [self.M*self.d_v]*n_layers, d_out, activation, bias=bias,dropout_p=dropout_p,
                                             layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
-        from torch.multiprocessing import Pool
         
         #self.pool = Pool(processes=len(self.uni_modal_models))
 

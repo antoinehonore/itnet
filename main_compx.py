@@ -147,7 +147,7 @@ def main(args):
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
-    if  (socket.gethostname() != "cmm0958"):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
+    if  (not (args.small)) or (socket.gethostname() != "cmm0958"):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
         data = get_data(DPATH)
         dataset = TheDataset(data)
         dataset.get_class_weights()
@@ -241,6 +241,7 @@ if __name__ == "__main__":
     parser.add_argument("--save", action="store_true", help="save figures", default=False)
     parser.add_argument("--show", action="store_true", help="Show figures", default=False)
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
+    parser.add_argument('--small', type=str, default=False, help="Run on all patients by default")
 
     args = parser.parse_args()
     main(args)
