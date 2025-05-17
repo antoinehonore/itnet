@@ -188,6 +188,7 @@ def main(args):
         
         #model = torch.compile(Predictor(hparams["model"]))
         model = Predictor(hparams["model"])
+        model = torch.compile(model)
         ltrainer = lTrainer(model=model, hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)//100
