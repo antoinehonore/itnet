@@ -141,6 +141,9 @@ class lTrainer(L.LightningModule):
         yclass = torch.cat(self.val_scores["yclass"]).squeeze(-1)
 
         scores = self.get_scores(y, yhat, yclass, suffix="/val")
+        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+
+
         i = 0
         ax = self.val_recon_figure[1]
         ax.cla()
