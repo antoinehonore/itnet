@@ -187,7 +187,7 @@ def main(args):
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
         if args.compile:
-            model = torch.compile(model,dynamic=True)
+            model = torch.compile(model)
 
         ltrainer = lTrainer(model=model, hparams=hparams)
         
@@ -217,7 +217,7 @@ def main(args):
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
         results_val =    trainer.validate(ltrainer, dataloaders=val_dataloader)
         results_test = []
-
+        
         results = [results_train, results_val, results_test]
 
         results.append(last_checkpoint)

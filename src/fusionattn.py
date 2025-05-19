@@ -141,12 +141,36 @@ class UniModalAttention(torch.nn.Module):
 
 class LinearOutput(torch.nn.Module):
     def __init__(self,d_in,d_out,names):
-        """ NYI """
         super(LinearOutput,self).__init__()
-        #raise Exception("LinearOutput is NYI")
         self.names = names
         self.linear_functions =  torch.nn.ModuleDict({mname: torch.nn.Linear(d_in, d_out, bias=False)
                                                 for mname in names})
+
+    def forward(self, batch):
+        output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
+        yhat = torch.cat(list(output.values()), dim=1)
+        yhat = yhat.sum(1)
+        return yhat
+
+class QLinear(torch.nn.Module):
+    def __init__(self, d_in):
+        super(QLinear,self).__init__()
+        self.linear_function = torch.nn.Linear(d_in, d_in, bias=False)
+
+    def forward(self, x):
+        Q = torch.linalg.qr(self.linear_function.weight).Q
+        yhat = x @ Q.T.to(dtype=x.dtype)
+        return yhat
+
+class QIsometricLinearOutput(torch.nn.Module):
+    def __init__(self,d_in,d_out,names):
+        """ NYI """
+        super(QIsometricLinearOutput,self).__init__()
+        #raise Exception("LinearOutput is NYI")
+        self.names = names
+        self.linear_functions =  torch.nn.ModuleDict({mname: QLinear(d_in)
+                                                for mname in names})
+
     def forward(self, batch):
         output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
         yhat = torch.cat(list(output.values()), dim=1)
@@ -226,7 +250,7 @@ class MultiModalAttention(torch.nn.Module):
         if not self.init_random:
             self.W_Q.linear_layers[0].weight = torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
         
-        self.output_layer = IsometricOutput(self.d_v,d_out,self.uni_modal_models.keys())
+        self.output_layer = QIsometricLinearOutput(self.d_v,d_out,self.uni_modal_models.keys())
         
     def forward(self, batch, pool=None):
         """
