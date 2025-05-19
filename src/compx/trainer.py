@@ -52,9 +52,9 @@ class lTrainer(L.LightningModule):
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
 
-        self.train_recon_figure     = plt.subplots(figsize=(7,6))
-        self.val_recon_figure       = plt.subplots(figsize=(7,6))
-        self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,8))
+        self.train_recon_figure     = plt.subplots(figsize=(5,4))
+        self.val_recon_figure       = plt.subplots(figsize=(5,4))
+        self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,6))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}

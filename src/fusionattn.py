@@ -143,14 +143,12 @@ class LinearOutput(torch.nn.Module):
     def __init__(self,d_in,d_out,names):
         """ NYI """
         super(LinearOutput,self).__init__()
-        raise Exception("LinearOutput is NYI")
+        #raise Exception("LinearOutput is NYI")
         self.names = names
-        self.isometries =  torch.nn.ModuleDict({mname: torch.nn.utils.parametrizations.weight_norm(
-                                                            torch.nn.Linear(d_in, d_out, bias=False),
-                                                            name='weight',dim=0)
+        self.linear_functions =  torch.nn.ModuleDict({mname: torch.nn.Linear(d_in, d_out, bias=False)
                                                 for mname in names})
     def forward(self, batch):
-        output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
+        output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
         yhat = torch.cat(list(output.values()), dim=1)
         yhat = yhat.sum(1)
         return yhat
@@ -190,11 +188,6 @@ class IsometricOutput(torch.nn.Module):
         self.isometries =  torch.nn.ModuleDict({mname: HouseholderLinear(d_in, d_out)
                                                 for mname in names})
     def forward(self, batch):
-        #layer.weight = torch.nn.Parameter(layer.weight/layer.weight.square().sum(-1),requires_grad=True)
-
-        #mname = '171_0'
-        #print(batch[mname].norm(-1),self.isometries[mname](batch[mname]).norm(-1))
-
         output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
         yhat = torch.cat(list(output.values()), dim=1)
         yhat = yhat.sum(1)
