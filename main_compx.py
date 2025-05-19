@@ -185,10 +185,10 @@ def main(args):
         log_dir = "lightning_logs"
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
-        
-        model = torch.compile(Predictor(hparams["model"]))
         model = Predictor(hparams["model"])
-        
+        if args.compile:
+            model = torch.compile(model)
+
         ltrainer = lTrainer(model=model, hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)//100
@@ -201,7 +201,7 @@ def main(args):
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches = 1000
-        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":0}
+        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":1}
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
@@ -243,6 +243,7 @@ if __name__ == "__main__":
     parser.add_argument("--show", action="store_true", help="Show figures", default=False)
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
     parser.add_argument('--small', action="store_true", default=False, help="Run on all patients by default")
+    parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
 
     args = parser.parse_args()
     main(args)
