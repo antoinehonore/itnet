@@ -141,6 +141,68 @@ class UniModalAttention(torch.nn.Module):
         return self.A
 
 
+class LinearOutput(torch.nn.Module):
+    def __init__(self,d_in,d_out,names):
+        """NYI"""
+        super(LinearOutput,self).__init__()
+        self.names = names
+        self.isometries =  torch.nn.ModuleDict({mname: torch.nn.utils.parametrizations.weight_norm(
+                                                            torch.nn.Linear(d_in, d_out, bias=False),
+                                                            name='weight',dim=0)
+                                                for mname in names})
+    def forward(self,batch):
+        output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
+        yhat = torch.cat(list(output.values()), dim=1)
+        yhat = yhat.sum(1)
+        return yhat
+
+
+class HouseholderLinear(torch.nn.Module):
+    def __init__(self, features, num_reflections=4):
+        super(HouseholderLinear, self).__init__()
+        self.features = features
+        self.num_reflections = num_reflections
+        
+        # Learnable Householder vectors
+        self.vectors = torch.nn.Parameter(torch.randn(num_reflections, features))
+        
+    def householder_reflection(self, v):
+        v = torch.nn.functional.normalize(v, dim=-1)  # Ensure unit vector
+        
+        vvT = torch.ger(v, v)  # Outer product
+        H = self.I - 2 * vvT
+        return H
+
+    def construct_orthogonal_matrix(self):
+        self.I = torch.eye(self.features, device=self.vectors.device)
+        Q = torch.eye(self.features, device=self.vectors.device)
+        for i in range(self.num_reflections):
+            H = self.householder_reflection(self.vectors[i])
+            Q = H @ Q
+        return Q
+
+    def forward(self, x):
+        W = self.construct_orthogonal_matrix()  # Shape: [features, features]
+        return x @ W.T  # Apply linear transformation
+
+
+class IsometricOutput(torch.nn.Module):
+    def __init__(self,d_in,d_out,names):
+        super(IsometricOutput,self).__init__()
+        assert(d_in==d_out)
+        self.isometries =  torch.nn.ModuleDict({mname: HouseholderLinear(d_in, d_out)
+                                                for mname in names})
+    def forward(self,batch):
+        #layer.weight = torch.nn.Parameter(layer.weight/layer.weight.square().sum(-1),requires_grad=True)
+
+        #mname = '171_0'
+        #print(batch[mname].norm(-1),self.isometries[mname](batch[mname]).norm(-1))
+
+        output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
+        yhat = torch.cat(list(output.values()), dim=1)
+        yhat = yhat.sum(1)
+        return yhat
+
 class MultiModalAttention(torch.nn.Module):
     def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
                  n_layers=0, activation="relu", 
@@ -174,8 +236,12 @@ class MultiModalAttention(torch.nn.Module):
         if not self.init_random:
             self.W_Q.linear_layers[0].weight = torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
         
-        self.W_out = MLP(self.M*self.d_v, [self.M*self.d_v]*n_layers, d_out, activation, bias=bias,dropout_p=dropout_p,
-                                            layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
+        self.output_layer = IsometricOutput(self.d_v,d_out,self.uni_modal_models.keys())
+        
+
+
+        # MLP(self.M*self.d_v, [self.M*self.d_v]*0, d_out, activation, bias=bias,dropout_p=dropout_p,
+                                            #layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
         
         #self.pool = Pool(processes=len(self.uni_modal_models))
 
@@ -201,19 +267,14 @@ class MultiModalAttention(torch.nn.Module):
         # Compute individual modality predictions sequentially
         # funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
 
-        results = [uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
-        norms = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in zip(self.uni_modal_models.keys(), results)}
+        results = {mname:uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()}
+        norms = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
         tot_norm = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
         self.norms = {k: 100*v/tot_norm for k,v in norms.items()}
+        
+        yhat = self.output_layer(results)
         # Concatenate on the head dimension
-        Zout = torch.cat(results, dim=1)
-
-        if not (self.W_out is None):
-            # Flatten all the heads
-            Zout = Zout.transpose(1,2).flatten(start_dim=2, end_dim=3)
-            yhat = self.W_out(Zout)
-        else:
-            yhat = Zout.mean(1)
+        #Zout = torch.cat(results, dim=1)
         return yhat
 
 
