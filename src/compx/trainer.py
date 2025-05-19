@@ -112,11 +112,18 @@ class lTrainer(L.LightningModule):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.to(torch.float)
-        
+        from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc,multiclass_auroc
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
+        thescores["Acc"+suffix] = multiclass_accuracy(yhat,yclass.long(), average="micro")
+        thescores["F1score"+suffix] = multiclass_f1_score(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
+        thescores["Prec"+suffix] = multiclass_precision(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
+        thescores["Recall"+suffix] = multiclass_recall(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
+        thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass.long(), num_classes=yhat.shape[-1])
+        thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass.long(), num_classes=yhat.shape[-1])
 
+        multiclass_f1_score
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
