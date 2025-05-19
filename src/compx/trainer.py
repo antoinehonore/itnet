@@ -11,29 +11,30 @@ import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
 
 
-
+# Matplotlib unique combinations of color (colorblind friendly), marker and styles,  from ChatPGT
 color_marker_style = [
-    {"color": "b",      "marker": "o", "linestyle": "-"},
-    {"color": "g",      "marker": "s", "linestyle": "--"},
-    {"color": "r",      "marker": "^", "linestyle": "-."},
-    {"color": "c",      "marker": "D", "linestyle": ":"},
-    {"color": "m",      "marker": "*", "linestyle": "-"},
-    {"color": "y",      "marker": "x", "linestyle": "--"},
-    {"color": "k",      "marker": "+", "linestyle": "-."},
-    {"color": "orange", "marker": "v", "linestyle": ":"},
-    {"color": "purple", "marker": "o", "linestyle": "--"},
-    {"color": "lime",   "marker": "s", "linestyle": "-"},
-    {"color": "b",      "marker": "^", "linestyle": ":"},
-    {"color": "g",      "marker": "D", "linestyle": "-."},
-    {"color": "r",      "marker": "*", "linestyle": "--"},
-    {"color": "c",      "marker": "x", "linestyle": "-"},
-    {"color": "m",      "marker": "+", "linestyle": ":"},
-    {"color": "y",      "marker": "v", "linestyle": "-."},
-    {"color": "k",      "marker": "o", "linestyle": "--"},
-    {"color": "orange", "marker": "s", "linestyle": ":"},
-    {"color": "purple", "marker": "^", "linestyle": "-"},
-    {"color": "lime",   "marker": "D", "linestyle": "--"},
+    {"color": "#E69F00", "marker": "o", "linestyle": "-"},   # orange
+    {"color": "#56B4E9", "marker": "s", "linestyle": "--"},  # sky blue
+    {"color": "#009E73", "marker": "^", "linestyle": "-."},  # bluish green
+    {"color": "#F0E442", "marker": "D", "linestyle": ":"},   # yellow
+    {"color": "#0072B2", "marker": "*", "linestyle": "-"},   # blue
+    {"color": "#D55E00", "marker": "x", "linestyle": "--"},  # vermillion
+    {"color": "#CC79A7", "marker": "+", "linestyle": "-."},  # reddish purple
+    {"color": "#999999", "marker": "v", "linestyle": ":"},   # grey
+    {"color": "#117733", "marker": "o", "linestyle": "--"},  # dark green
+    {"color": "#88CCEE", "marker": "s", "linestyle": "-"},   # light blue
+    {"color": "#332288", "marker": "^", "linestyle": ":"},   # dark purple
+    {"color": "#44AA99", "marker": "D", "linestyle": "-."},  # teal
+    {"color": "#DDCC77", "marker": "*", "linestyle": "--"},  # sand
+    {"color": "#AA4499", "marker": "x", "linestyle": "-"},   # purple
+    {"color": "#882255", "marker": "+", "linestyle": ":"},   # wine
+    {"color": "#661100", "marker": "v", "linestyle": "-."},  # dark brown
+    {"color": "#999933", "marker": "o", "linestyle": "--"},  # olive
+    {"color": "#6699CC", "marker": "s", "linestyle": ":"},   # steel blue
+    {"color": "#888888", "marker": "^", "linestyle": "-"},   # mid gray
+    {"color": "#F28500", "marker": "D", "linestyle": "--"},  # vivid orange
 ]
+
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
@@ -135,7 +136,7 @@ class lTrainer(L.LightningModule):
             ax = axes[1]
             ax.cla()
             ax.plot(timeline,yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
-            ax.plot(timeline,yclass[batch_idx].cpu().numpy(),label="True ",marker="x")
+            ax.plot(timeline,yclass[batch_idx].cpu().numpy(),label="True ",marker="o")
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")

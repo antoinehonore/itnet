@@ -187,7 +187,7 @@ def main(args):
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
         if args.compile:
-            model = torch.compile(model)
+            model = torch.compile(model,dynamic=True)
 
         ltrainer = lTrainer(model=model, hparams=hparams)
         
