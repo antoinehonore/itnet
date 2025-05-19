@@ -93,8 +93,7 @@ class UniModalAttention(torch.nn.Module):
         out = self.causal_attn_func(Q, K, V, t1, t2)
         
         if out.isnan().any():
-            print(self.name, "NANs !!!")
-            sys.exit(1)
+            raise Exception("{} contains NANs !!!".format(self.name))
         return out
         
     def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6):
@@ -140,22 +139,21 @@ class UniModalAttention(torch.nn.Module):
         self.A = (self.A* mask).softmax(-1) *mask
         return self.A
 
-
 class LinearOutput(torch.nn.Module):
     def __init__(self,d_in,d_out,names):
-        """NYI"""
+        """ NYI """
         super(LinearOutput,self).__init__()
+        raise Exception("LinearOutput is NYI")
         self.names = names
         self.isometries =  torch.nn.ModuleDict({mname: torch.nn.utils.parametrizations.weight_norm(
                                                             torch.nn.Linear(d_in, d_out, bias=False),
                                                             name='weight',dim=0)
                                                 for mname in names})
-    def forward(self,batch):
+    def forward(self, batch):
         output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
         yhat = torch.cat(list(output.values()), dim=1)
         yhat = yhat.sum(1)
         return yhat
-
 
 class HouseholderLinear(torch.nn.Module):
     def __init__(self, features, num_reflections=4):
@@ -185,14 +183,13 @@ class HouseholderLinear(torch.nn.Module):
         W = self.construct_orthogonal_matrix()  # Shape: [features, features]
         return x @ W.T  # Apply linear transformation
 
-
 class IsometricOutput(torch.nn.Module):
     def __init__(self,d_in,d_out,names):
         super(IsometricOutput,self).__init__()
-        assert(d_in==d_out)
+        assert(d_in == d_out)
         self.isometries =  torch.nn.ModuleDict({mname: HouseholderLinear(d_in, d_out)
                                                 for mname in names})
-    def forward(self,batch):
+    def forward(self, batch):
         #layer.weight = torch.nn.Parameter(layer.weight/layer.weight.square().sum(-1),requires_grad=True)
 
         #mname = '171_0'
@@ -225,9 +222,9 @@ class MultiModalAttention(torch.nn.Module):
         self.d_in_q = self.modalities_dimension["q"]
         
         self.uni_modal_models = torch.nn.ModuleDict({mname: UniModalAttention(d_in, d_qk, self.d_v, self.n_layers_qk, qk_type,
-                                 activation=activation, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,
+                                activation=activation, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,
                                 attention_type=attention_type, init_random=init_random,init_tau=init_tau,weight_type=weight_type,
-                                dropout_p=dropout_p,name=mname)
+                                dropout_p=dropout_p, name=mname)
                                     for mname,d_in in self.modalities_dimension["k"].items() if mname != "reference"})
         
         self.W_Q = MLP(self.d_in_q, [self.d_qk]*self.n_layers_qk, self.d_qk, activation, bias=False,dropout_p=dropout_p,
@@ -238,13 +235,6 @@ class MultiModalAttention(torch.nn.Module):
         
         self.output_layer = IsometricOutput(self.d_v,d_out,self.uni_modal_models.keys())
         
-
-
-        # MLP(self.M*self.d_v, [self.M*self.d_v]*0, d_out, activation, bias=bias,dropout_p=dropout_p,
-                                            #layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature) 
-        
-        #self.pool = Pool(processes=len(self.uni_modal_models))
-
     def forward(self, batch, pool=None):
         """
             Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}

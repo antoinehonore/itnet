@@ -10,6 +10,30 @@ from torcheval.metrics.functional import binary_auprc
 import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
 
+
+
+color_marker_style = [
+    {"color": "b",      "marker": "o", "linestyle": "-"},
+    {"color": "g",      "marker": "s", "linestyle": "--"},
+    {"color": "r",      "marker": "^", "linestyle": "-."},
+    {"color": "c",      "marker": "D", "linestyle": ":"},
+    {"color": "m",      "marker": "*", "linestyle": "-"},
+    {"color": "y",      "marker": "x", "linestyle": "--"},
+    {"color": "k",      "marker": "+", "linestyle": "-."},
+    {"color": "orange", "marker": "v", "linestyle": ":"},
+    {"color": "purple", "marker": "o", "linestyle": "--"},
+    {"color": "lime",   "marker": "s", "linestyle": "-"},
+    {"color": "b",      "marker": "^", "linestyle": ":"},
+    {"color": "g",      "marker": "D", "linestyle": "-."},
+    {"color": "r",      "marker": "*", "linestyle": "--"},
+    {"color": "c",      "marker": "x", "linestyle": "-"},
+    {"color": "m",      "marker": "+", "linestyle": ":"},
+    {"color": "y",      "marker": "v", "linestyle": "-."},
+    {"color": "k",      "marker": "o", "linestyle": "--"},
+    {"color": "orange", "marker": "s", "linestyle": ":"},
+    {"color": "purple", "marker": "^", "linestyle": "-"},
+    {"color": "lime",   "marker": "D", "linestyle": "--"},
+]
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
@@ -30,7 +54,7 @@ class lTrainer(L.LightningModule):
 
         self.train_recon_figure     = plt.subplots(figsize=(7,6))
         self.val_recon_figure       = plt.subplots(figsize=(7,6))
-        self.val_senspec_figure     = plt.subplots(figsize=(12,4))
+        self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,8))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
@@ -94,14 +118,25 @@ class lTrainer(L.LightningModule):
         norms = self.model.fusion_model.estimate_fusion.norms
 
         if batch_idx == 0 and (self.logger is not None):
-            fig, ax = self.val_senspec_figure
+            timeline = batch["data"]["reference"][batch_idx]
+            fig, axes = self.val_senspec_figure
+            ax = axes[0]
             ax.cla()
-            plot_data = torch.cat(list(norms.values()),dim=-1)[0,0].cpu().numpy()
-            ax.plot(plot_data, label=list(norms.keys()))
-            ax.legend()
-            ax.set_xlabel("time")
+            plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().numpy()
+            labels = list(norms.keys())
+            for j in range(plot_data.shape[1]):
+                ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
+            ax.legend(bbox_to_anchor=(1,1))
+            ax.set_xlabel("Time")
             ax.set_ylabel("Modality contribution (%)")
-
+            ax = axes[1]
+            ax.cla()
+            ax.plot(batch["data"]["reference"][batch_idx],yhat[batch_idx].argmax(-1),label="Predicted ",marker="x")
+            ax.plot(batch["data"]["reference"][batch_idx],yclass[batch_idx],label="True ",marker="x")
+            ax.legend()
+            ax.set_xlabel("Time")
+            ax.set_ylabel("Class index")
+            fig.savefig("test.pdf")
             self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
