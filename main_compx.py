@@ -201,7 +201,7 @@ def main(args):
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches = 1000
-        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":1}
+        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":0}
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
