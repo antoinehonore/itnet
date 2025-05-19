@@ -118,7 +118,7 @@ class lTrainer(L.LightningModule):
         norms = self.model.fusion_model.estimate_fusion.norms
 
         if batch_idx == 0 and (self.logger is not None):
-            timeline = batch["data"]["reference"][batch_idx]
+            timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
             fig, axes = self.val_senspec_figure
             ax = axes[0]
             ax.cla()
@@ -131,8 +131,8 @@ class lTrainer(L.LightningModule):
             ax.set_ylabel("Modality contribution (%)")
             ax = axes[1]
             ax.cla()
-            ax.plot(batch["data"]["reference"][batch_idx],yhat[batch_idx].argmax(-1),label="Predicted ",marker="x")
-            ax.plot(batch["data"]["reference"][batch_idx],yclass[batch_idx],label="True ",marker="x")
+            ax.plot(timeline,yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
+            ax.plot(timeline,yclass[batch_idx].cpu().numpy(),label="True ",marker="x")
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")
