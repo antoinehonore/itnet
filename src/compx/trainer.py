@@ -138,7 +138,7 @@ class lTrainer(L.LightningModule):
 
         scores = self.get_scores(y, yhat, yclass, suffix="/train")
         i = 0
-        ax = self.val_recon_figure[1]
+        ax = self.train_recon_figure[1]
         ax.cla()
         plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
         if self.logger is not None:
