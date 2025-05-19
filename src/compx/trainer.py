@@ -62,6 +62,9 @@ class lTrainer(L.LightningModule):
         self.the_training_step  = 0
         self.model = model
 
+        self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
+        self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
+    
     def configure_model(self):
         if self.model is not None:
             return
