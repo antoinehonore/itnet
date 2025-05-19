@@ -28,8 +28,8 @@ class lTrainer(L.LightningModule):
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
 
-        self.train_recon_figure     = plt.subplots(figsize=(10,6))
-        self.val_recon_figure       = plt.subplots(figsize=(10,6))
+        self.train_recon_figure     = plt.subplots(figsize=(7,6))
+        self.val_recon_figure       = plt.subplots(figsize=(7,6))
         self.val_senspec_figure     = plt.subplots(figsize=(12,4))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
@@ -130,7 +130,13 @@ class lTrainer(L.LightningModule):
         yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
 
         scores = self.get_scores(y, yhat, yclass, suffix="/train")
-
+        i = 0
+        ax = self.val_recon_figure[1]
+        ax.cla()
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
+        if self.logger is not None:
+            self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
+        
         self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [], "yhat": [], "yclass": []}
 
@@ -146,7 +152,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.val_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu())
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
