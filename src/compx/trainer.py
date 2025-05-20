@@ -35,23 +35,27 @@ color_marker_style = [
     {"color": "#F28500", "marker": "D", "linestyle": "--"},  # vivid orange
 ]
 
+
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
-        self.model_params=hparams["model"]
+        self.model_params = hparams["model"]
         self.save_hyperparameters(hparams)
 
-        self.val_scores = {"y":[],"yhat":[]}
-        self.train_scores = {"y":[],"yhat":[]}
+        self.val_scores = {"y":[], "yhat":[]}
+        self.train_scores = {"y":[], "yhat":[]}
         self.loss_fun_name = hparams["training"]["loss"] 
 
         if self.loss_fun_name == "BCE":
             self.loss_fun = torch.nn.functional.binary_cross_entropy_with_logits#torch.nn.functional.cross_entropy
+        
         elif self.loss_fun_name == "CE":
             self.loss_fun = torch.nn.functional.cross_entropy#torch.nn.functional.cross_entropy
         
         elif self.loss_fun_name == "MSE":
             self.loss_fun = torch.nn.functional.mse_loss
+        else:
+            raise Exception("Loss function "+self.loss_fun_name+" is NYI.")
 
         self.train_recon_figure     = plt.subplots(figsize=(5,4))
         self.val_recon_figure       = plt.subplots(figsize=(5,4))
@@ -77,7 +81,7 @@ class lTrainer(L.LightningModule):
 
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def compute_loss(self, batch):
         y = batch["targets"]
@@ -99,9 +103,9 @@ class lTrainer(L.LightningModule):
             yhat = yhat[0]
             y_n = y.squeeze(0)
         
-        loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()#.squeeze(-1).T.long())
+        loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
         return loss
-
+    
     def training_step(self, batch, batch_idx, dataloader_idx=0):
         opt = self.optimizers()
         loss = 0.0
@@ -149,12 +153,16 @@ class lTrainer(L.LightningModule):
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        y = batch["targets"]
+
         yclass = batch["targets2"]
-        y_n = y
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
-        
+        if not ("targets" in batch.keys()):
+            y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
+        else:
+            y = batch["targets"]
+        y_n = y
+
         if batch_idx == 0 and (self.logger is not None):
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
             fig, axes = self.val_senspec_figure
@@ -174,7 +182,6 @@ class lTrainer(L.LightningModule):
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")
-            #fig.savefig("test.pdf")
             self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
@@ -241,7 +248,6 @@ class lTrainer(L.LightningModule):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
                 lr=self.hparams["training"]['lr'])
         return optim
-
 
 
 def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=6):

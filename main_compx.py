@@ -97,6 +97,7 @@ def get_tr_val_index_lists(data):
 
     #tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
     #val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
     return tr_val_index_lists#training_dataset, validation_dataset#, zip(tr_fold_indices, val_fold_indices)
 
 def init_tau(data):
@@ -152,9 +153,9 @@ def main(args):
         dataset = TheDataset(data)
         dataset.get_class_weights()
         class_weights = dataset.class_weights
-        datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//10:]}
+        datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//20:]}
 
-        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall,valdata,testdata])
+        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall, valdata, testdata])
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
 
@@ -175,12 +176,14 @@ def main(args):
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
 
     all_fold_results = []
-    test_set =  TheDataset(valdata)
+    test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
+    val_set =  TheDataset(valdata)
+    val_set.class_weights = class_weights
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
-        val_set = Subset(dataset, fold_val_index)
+        #val_set = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
@@ -212,10 +215,10 @@ def main(args):
                             enable_progress_bar=args.v>1,
                             enable_checkpointing=False, profiler=profiler, limit_test_batches=10, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
         
-        trainer.test(ltrainer, dataloaders=test_dataloader)
-        
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     
+        trainer.test(ltrainer, dataloaders=test_dataloader)
+        
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
