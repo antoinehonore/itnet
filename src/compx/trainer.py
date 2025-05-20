@@ -9,7 +9,7 @@ from torchmetrics import ConfusionMatrix
 from torcheval.metrics.functional import binary_auprc
 import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
-
+from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc,multiclass_auroc
 
 # Matplotlib unique combinations of color (colorblind friendly), marker and styles,  from ChatPGT
 color_marker_style = [
@@ -65,7 +65,7 @@ class lTrainer(L.LightningModule):
 
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def configure_model(self):
         if self.model is not None:
@@ -77,7 +77,7 @@ class lTrainer(L.LightningModule):
 
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def compute_loss(self, batch):
         y = batch["targets"]
@@ -117,19 +117,35 @@ class lTrainer(L.LightningModule):
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
     
     def test_step(self,batch,batch_idx, dataloader_idx=0):
-        #y = batch["targets"]
         yclass = None
+        y = None
         if "targets2" in batch.keys():
             yclass = batch["targets2"]
         
+        if "targets" in batch.keys():
+            y = batch["targets"]
+        
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
+        if not (y is None):
+            self.test_scores["y"].append(y.squeeze(0))
+        
+        if not (yclass is None):
+            self.test_scores["yclass"].append(yclass.squeeze(0))
 
-        print("")
+        self.test_scores["yhat"].append(yhat.detach().squeeze(0))
+        self.test_scores["norms"].append(norms)
+    
+    def on_test_epoch_end(self):
+        if len(self.test_scores["yclass"]) >0:
+            #y = torch.cat(self.train_scores["y"]).squeeze(-1)
+            yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
+            yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
+            y = torch.eye(yhat.shape[-1])[yclass.long()]
 
-    def on_test_epoch_end(self,):
+            scores = self.get_scores(y, yhat, yclass, suffix="/test")
 
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
@@ -152,8 +168,8 @@ class lTrainer(L.LightningModule):
             ax.set_ylabel("Modality contribution (%)")
             ax = axes[1]
             ax.cla()
-            ax.plot(timeline,yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
-            ax.plot(timeline,yclass[batch_idx].cpu().numpy(),label="True ",marker="o")
+            ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
+            ax.plot(timeline, yclass[batch_idx].cpu().numpy(),label="True ",marker="o")
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")
@@ -167,18 +183,17 @@ class lTrainer(L.LightningModule):
     def get_scores(self, y, yhat, yclass, suffix=""):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
-        yclass = yclass.to(torch.float)
-        from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc,multiclass_auroc
+        yclass = yclass.long()
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
-        thescores["Acc"+suffix] = multiclass_accuracy(yhat,yclass.long(), average="micro")
-        thescores["F1score"+suffix] = multiclass_f1_score(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
-        thescores["Prec"+suffix] = multiclass_precision(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
-        thescores["Recall"+suffix] = multiclass_recall(yhat,yclass.long(), average="weighted", num_classes=yhat.shape[-1])
-        thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass.long(), num_classes=yhat.shape[-1])
-        thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass.long(), num_classes=yhat.shape[-1])
-
+        thescores["Acc"+suffix] = multiclass_accuracy(yhat,yclass, average="micro")
+        thescores["F1score"+suffix] = multiclass_f1_score(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["Prec"+suffix] = multiclass_precision(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["Recall"+suffix] = multiclass_recall(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass, num_classes=yhat.shape[-1])
+        thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass, num_classes=yhat.shape[-1])
+        
         multiclass_f1_score
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)

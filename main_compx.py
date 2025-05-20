@@ -173,7 +173,7 @@ def main(args):
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
-    
+
     all_fold_results = []
     test_set =  TheDataset(valdata)
     test_set.class_weights = class_weights
@@ -209,7 +209,9 @@ def main(args):
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
+                            enable_progress_bar=args.v>1,
+                            enable_checkpointing=False, profiler=profiler, limit_test_batches=10, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
+        
         trainer.test(ltrainer, dataloaders=test_dataloader)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
