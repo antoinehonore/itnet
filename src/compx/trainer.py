@@ -117,6 +117,9 @@ class lTrainer(L.LightningModule):
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
     
     def test_step(self,batch,batch_idx, dataloader_idx=0):
+        if batch_idx ==0:
+            self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+
         yclass = None
         y = None
         if "targets2" in batch.keys():
@@ -138,13 +141,11 @@ class lTrainer(L.LightningModule):
     
     def on_test_epoch_end(self):
         if len(self.test_scores["yclass"]) >0:
-            #y = torch.cat(self.train_scores["y"]).squeeze(-1)
             yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
-            y = torch.eye(yhat.shape[-1])[yclass.long()]
-
+            y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
-
+        
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -193,7 +194,7 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] = multiclass_recall(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
         thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass, num_classes=yhat.shape[-1])
         thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass, num_classes=yhat.shape[-1])
-        
+
         multiclass_f1_score
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
