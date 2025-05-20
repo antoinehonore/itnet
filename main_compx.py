@@ -148,18 +148,19 @@ def main(args):
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
     if  (not (args.small)):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
-        data = get_data(DPATH)
+        data,valdata,testdata = get_data(DPATH)
         dataset = TheDataset(data)
         dataset.get_class_weights()
         class_weights = dataset.class_weights
         datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//10:]}
-        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall])
+
+        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall,valdata,testdata])
     else:
-        class_weights, data = read_pklz(DPATH + "/datasmall.pklz")
+        class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
 
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
-
+    
     batch_size = 1
     impute = {"imputer": None}
 
@@ -174,6 +175,8 @@ def main(args):
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
 
     all_fold_results = []
+    test_set =  TheDataset(valdata)
+    test_set.class_weights = class_weights
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
@@ -181,7 +184,8 @@ def main(args):
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
-        
+        test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+
         log_dir = "lightning_logs"
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -207,6 +211,8 @@ def main(args):
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1, enable_checkpointing=False, profiler=profiler, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
         
+        #trainer.test(ltrainer, dataloaders=test_dataloader)
+
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")

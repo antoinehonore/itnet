@@ -130,79 +130,107 @@ def dataframe2X(dd, append_diff=True):
 def append_dummy_timeline(dd):
     return torch.from_numpy(np.concat([dd.values, np.array([[0]]), np.array([[0]])],axis=1)).to(torch.float)
     
-def readouts2dict(readouts, tte, specs, root_dir="."):
-    fname = os.path.join(root_dir, "data.pklz")
+def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="training"):
+    all_vehicles =  readouts["vehicle_id"].unique()
+    metadata =      ['vehicle_id', 'time_step']
+    targets =       ["in_study_repair", "time_to_potential_event", "class_label"]
+    num_variables = [["171_0"], ["666_0"], ["427_0"], 
+                        ["837_0"], ["309_0"], ["835_0"], 
+                        ["370_0"], ["100_0"]
+                    ]
+    
+    specs_varnames = specs.set_index("vehicle_id").columns
+    all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
+    all_specs_varnames = sorted(all_specs_varnames)
 
-    if not os.path.exists(fname):
-        all_vehicles =  readouts["vehicle_id"].unique()
-        metadata =      ['vehicle_id', 'time_step']
-        targets =       ["in_study_repair", "time_to_potential_event", "class_label"]
-        num_variables = [["171_0"], ["666_0"], ["427_0"], 
-                         ["837_0"], ["309_0"], ["835_0"], 
-                         ["370_0"], ["100_0"]
-                        ]
+    specs = pd.get_dummies(specs.set_index("vehicle_id"))#.reset_index()
+    specs = specs[all_specs_varnames]  ###.shape
 
-        specs_varnames = specs.set_index("vehicle_id").columns
-        all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
-        all_specs_varnames = sorted(all_specs_varnames)
+    cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
+                        for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
+                                                [10, 10, 11, 10, 20, 36]
+                                                )
+                    }
 
-        specs = pd.get_dummies(specs.set_index("vehicle_id"))#.reset_index()
-        specs = specs[all_specs_varnames]  ###.shape
+    if dataset=="validation":
+        assert (tte is None)
+        assert(not (labels is None))
+        labels_dict = labels.set_index("vehicle_id")["class_label"].to_dict()
+        df = readouts
 
+    elif dataset == "training":
         df = add_class_labels(tte, readouts)
         df.drop(columns=["length_of_study_time_step"], inplace=True)
-        cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
-                         for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
-                                                    [10, 10, 11, 10, 20, 36]
-                                                   )
-                        }
 
-        the_dict = {v_id:
-                      df[df["vehicle_id"]==v_id].drop(columns=["vehicle_id"]).set_index("time_step")
-                      for v_id in all_vehicles
-                      }
+    elif dataset == "testing":
+        df = readouts
 
-        the_dict = {v_id:
-                       {"data":{
-                            **{num_varname[0]: dataframe2X(df[num_varname])  for num_varname in num_variables},
-                            **{cat_varname:    dataframe2X(df[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()},
-                            **{"specs":        append_dummy_timeline(specs[specs.index == v_id]),
-                              "reference": torch.from_numpy(df["class_label"].index.values).to(torch.float)
-                              }
-                       },
-                       "targets": torch.cat(df["class_label"].values.tolist()),   #dataframe2X(df[targets],append_diff=False)[:,:-1],
-                       "targets2": torch.from_numpy(df["class_label2"].values).to(torch.float)#dataframe2X(df[targets],append_diff=False)[:,:-1],
-                       }
-                    for v_id,df in the_dict.items()}
-        write_pklz(fname, the_dict)
-    else:
-        the_dict = read_pklz(fname)
-    return the_dict
+        #raise Exception("NYI")
+
+    the_dict = {v_id:
+                    df[df["vehicle_id"]==v_id].drop(columns=["vehicle_id"]).set_index("time_step")
+                    for v_id in all_vehicles
+                    }
+    
+    the_dict2 = {v_id:
+                    {"data":{
+                        **{num_varname[0]: dataframe2X(dd[num_varname])  for num_varname in num_variables},
+                        **{cat_varname:    dataframe2X(dd[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()},
+                        **{"specs":        append_dummy_timeline(specs[specs.index == v_id])}
+                        },
+                    }
+                for v_id, dd in the_dict.items()}
+    
+    if dataset == "training":
+        for v_id, dd in the_dict.items():
+            the_dict2[v_id]["data"]["reference"] = torch.from_numpy(dd["class_label"].index.values).to(torch.float)
+            the_dict2[v_id]["targets"]           = torch.cat(dd["class_label"].values.tolist())
+            the_dict2[v_id]["targets2"]          = torch.from_numpy(dd["class_label2"].values).to(torch.float)
+    
+    elif dataset == "validation":
+        for v_id, dd in the_dict.items():
+            the_dict2[v_id]["data"]["reference"] = torch.from_numpy(dd.index.values[[-1]]).to(torch.float)
+            the_dict2[v_id]["targets2"]          = torch.from_numpy(np.array([labels_dict[v_id]])).to(torch.float)
+    elif dataset == "testing":
+        for v_id, dd in the_dict.items():
+            the_dict2[v_id]["data"]["reference"] = torch.from_numpy(dd.index.values[[-1]]).to(torch.float)
+    return the_dict2
 
 def get_data(DPATH):
     root_dir = DPATH#"."
     #Read the raw data
-    #Train data
-    tteTrain = pd.read_csv(os.path.join(root_dir, 'train_tte.csv'))
-    specificationsTrain = pd.read_csv(os.path.join(root_dir, 'train_specifications.csv'))
-    readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
+    # Train data
 
-    mu = readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
-    sigma = readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
-    readoutsTrain = ((readoutsTrain.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+    fname = os.path.join(root_dir, "data.pklz")
+    if not os.path.exists(fname):
+        tteTrain = pd.read_csv(os.path.join(root_dir, 'train_tte.csv'))
+        specificationsTrain = pd.read_csv(os.path.join(root_dir, 'train_specifications.csv'))
+        readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
 
-    #Validation data
-    labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
-    specificationsValidation = pd.read_csv(os.path.join(root_dir, 'validation_specifications.csv'))
+        mu = readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
+        sigma = readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
+        readoutsTrain = ((readoutsTrain.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
 
-    readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
-    readoutsValidation = ((readoutsValidation.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+        # Validation data
+        labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
+        specificationsValidation = pd.read_csv(os.path.join(root_dir, 'validation_specifications.csv'))
+        readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
+        readoutsValidation = ((readoutsValidation.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
 
-    #Test data
-    specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
-    readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
-    readoutsTest = ((readoutsTest.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+        # Test data
+        specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
+        readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
+        readoutsTest = ((readoutsTest.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
 
-    train_dict = readouts2dict(readoutsTrain,tteTrain,specificationsTrain,root_dir=root_dir)
-    return train_dict#read_pklz(os.path.join(DPATH,"data.pklz"))
+        test_dict = readouts2dict(readoutsTest, None, specificationsTest, root_dir=root_dir, dataset="testing")
         
+        val_dict = readouts2dict(readoutsValidation, None, specificationsValidation, root_dir=root_dir, labels=labelsValidation, dataset="validation")
+
+        train_dict = readouts2dict(readoutsTrain,tteTrain,specificationsTrain,root_dir=root_dir, dataset="training")
+
+        write_pklz(fname, [train_dict, val_dict, test_dict])
+    else:
+        train_dict,val_dict,test_dict = read_pklz(fname)
+
+    return train_dict,val_dict,test_dict
+    

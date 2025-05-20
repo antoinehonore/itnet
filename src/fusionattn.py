@@ -139,18 +139,26 @@ class UniModalAttention(torch.nn.Module):
         self.A = (self.A* mask).softmax(-1) *mask
         return self.A
 
-class LinearOutput(torch.nn.Module):
-    def __init__(self,d_in,d_out,names):
+class LinearLayer(torch.nn.Module):
+    def __init__(self,d_in):
         super(LinearOutput,self).__init__()
-        self.names = names
-        self.linear_functions =  torch.nn.ModuleDict({mname: torch.nn.Linear(d_in, d_out, bias=False)
-                                                for mname in names})
+        self.linear_function = torch.nn.Linear(d_in, d_in, bias=False)
+
+    def forward(self, batch):
+        return self.linear_function(batch)
+
+class OutputLayer(torch.nn.Module):
+    def __init__(self,d_in, d_out, names, layer=LinearLayer):
+        super(OutputLayer,self).__init__()
+
+        assert d_in==d_out, "Different input and output dimensions are NYI"
+        self.linear_functions =  torch.nn.ModuleDict({mname: layer(d_in) for mname in names})
 
     def forward(self, batch):
         output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
         yhat = torch.cat(list(output.values()), dim=1)
         yhat = yhat.sum(1)
-        return yhat
+        return yhat 
 
 class QLinear(torch.nn.Module):
     def __init__(self, d_in):
@@ -160,21 +168,6 @@ class QLinear(torch.nn.Module):
     def forward(self, x):
         Q = torch.linalg.qr(self.linear_function.weight).Q
         yhat = x @ Q.T.to(dtype=x.dtype)
-        return yhat
-
-class QIsometricLinearOutput(torch.nn.Module):
-    def __init__(self,d_in,d_out,names):
-        """ NYI """
-        super(QIsometricLinearOutput,self).__init__()
-        #raise Exception("LinearOutput is NYI")
-        self.names = names
-        self.linear_functions =  torch.nn.ModuleDict({mname: QLinear(d_in)
-                                                for mname in names})
-
-    def forward(self, batch):
-        output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
-        yhat = torch.cat(list(output.values()), dim=1)
-        yhat = yhat.sum(1)
         return yhat
 
 class HouseholderLinear(torch.nn.Module):
@@ -205,17 +198,6 @@ class HouseholderLinear(torch.nn.Module):
         W = self.construct_orthogonal_matrix()  # Shape: [features, features]
         return x @ W.T  # Apply linear transformation
 
-class IsometricOutput(torch.nn.Module):
-    def __init__(self,d_in,d_out,names):
-        super(IsometricOutput,self).__init__()
-        assert(d_in == d_out)
-        self.isometries =  torch.nn.ModuleDict({mname: HouseholderLinear(d_in, d_out)
-                                                for mname in names})
-    def forward(self, batch):
-        output = {mname: self.isometries[mname](batch[mname]) for mname in batch.keys()}
-        yhat = torch.cat(list(output.values()), dim=1)
-        yhat = yhat.sum(1)
-        return yhat
 
 class MultiModalAttention(torch.nn.Module):
     def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
@@ -250,7 +232,7 @@ class MultiModalAttention(torch.nn.Module):
         if not self.init_random:
             self.W_Q.linear_layers[0].weight = torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
         
-        self.output_layer = QIsometricLinearOutput(self.d_v,d_out,self.uni_modal_models.keys())
+        self.output_layer = OutputLayer(self.d_v, d_out, self.uni_modal_models.keys(), layer=QLinear)
         
     def forward(self, batch, pool=None):
         """

@@ -65,7 +65,8 @@ class lTrainer(L.LightningModule):
 
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-    
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
+
     def configure_model(self):
         if self.model is not None:
             return
@@ -76,7 +77,8 @@ class lTrainer(L.LightningModule):
 
         self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-    
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
+
     def compute_loss(self, batch):
         y = batch["targets"]
         yclass = batch["targets2"]
@@ -113,6 +115,21 @@ class lTrainer(L.LightningModule):
             opt.zero_grad()
         
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
+    
+    def test_step(self,batch,batch_idx, dataloader_idx=0):
+        #y = batch["targets"]
+        yclass = None
+        if "targets2" in batch.keys():
+            yclass = batch["targets2"]
+        
+        yhat = self.model(batch)
+        norms = self.model.fusion_model.estimate_fusion.norms
+
+        print("")
+
+    def on_test_epoch_end(self,):
+
+        self.test_scores = {"y": [],   "yhat": [], "yclass":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         y = batch["targets"]
@@ -140,7 +157,7 @@ class lTrainer(L.LightningModule):
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")
-            fig.savefig("test.pdf")
+            #fig.savefig("test.pdf")
             self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
 
         self.val_scores["y"].append(y.squeeze(0))
