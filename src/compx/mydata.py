@@ -138,20 +138,13 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
                         ["837_0"], ["309_0"], ["835_0"], 
                         ["370_0"], ["100_0"]
                     ]
-    
-    specs_varnames = specs.set_index("vehicle_id").columns
-    all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
-    all_specs_varnames = sorted(all_specs_varnames)
-
-    specs = pd.get_dummies(specs.set_index("vehicle_id"))#.reset_index()
-    specs = specs[all_specs_varnames]  ###.shape
 
     cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
                         for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
                                                 [10, 10, 11, 10, 20, 36]
                                                 )
                     }
-
+    specs.set_index("vehicle_id",inplace=True)
     if dataset=="validation":
         assert (tte is None)
         assert(not (labels is None))
@@ -221,6 +214,23 @@ def get_data(DPATH):
         specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
         readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
         readoutsTest = ((readoutsTest.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+        specificationsTrain["dataset"]="train"
+        specificationsValidation["dataset"]="validation"
+        specificationsTest["dataset"]="test"
+        
+        specs = pd.concat([specificationsTrain,specificationsValidation,specificationsTest])
+        specs_varnames = specs.set_index(["vehicle_id","dataset"]).columns
+        all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
+        all_specs_varnames = sorted(all_specs_varnames)
+
+        specs = pd.get_dummies(specs.set_index(["vehicle_id","dataset"]))#.reset_index()
+        specs = specs[all_specs_varnames]  ###.shape
+        specs.reset_index(inplace=True)
+        specificationsTrain,specificationsValidation,specificationsTest = [specs[specs["dataset"]==s] for s in ["train", 'validation', "test"]]
+        specificationsTrain.drop(columns=["dataset"],inplace=True)
+        specificationsValidation.drop(columns=["dataset"],inplace=True)
+        specificationsTest.drop(columns=["dataset"],inplace=True)
+
 
         test_dict = readouts2dict(readoutsTest, None, specificationsTest, root_dir=root_dir, dataset="testing")
         
