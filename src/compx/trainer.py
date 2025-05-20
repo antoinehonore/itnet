@@ -145,7 +145,7 @@ class lTrainer(L.LightningModule):
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
-        
+
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -154,7 +154,7 @@ class lTrainer(L.LightningModule):
         y_n = y
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
-
+        
         if batch_idx == 0 and (self.logger is not None):
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
             fig, axes = self.val_senspec_figure
