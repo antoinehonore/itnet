@@ -159,7 +159,7 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
         df = readouts
 
         #raise Exception("NYI")
-
+    
     the_dict = {v_id:
                     df[df["vehicle_id"]==v_id].drop(columns=["vehicle_id"]).set_index("time_step")
                     for v_id in all_vehicles
@@ -184,6 +184,7 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
         for v_id, dd in the_dict.items():
             the_dict2[v_id]["data"]["reference"] = torch.from_numpy(dd.index.values[[-1]]).to(torch.float)
             the_dict2[v_id]["targets2"]          = torch.from_numpy(np.array([labels_dict[v_id]])).to(torch.float)
+
     elif dataset == "testing":
         for v_id, dd in the_dict.items():
             the_dict2[v_id]["data"]["reference"] = torch.from_numpy(dd.index.values[[-1]]).to(torch.float)
@@ -198,25 +199,31 @@ def get_data(DPATH):
     if not os.path.exists(fname):
         tteTrain = pd.read_csv(os.path.join(root_dir, 'train_tte.csv'))
         specificationsTrain = pd.read_csv(os.path.join(root_dir, 'train_specifications.csv'))
-        readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
 
+        # Read data
+        readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
+        readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
+        readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
+
+        
+        # Normalization stats
         mu = readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
         sigma = readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
-        readoutsTrain = ((readoutsTrain.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
 
         # Validation data
         labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
         specificationsValidation = pd.read_csv(os.path.join(root_dir, 'validation_specifications.csv'))
-        readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
-        readoutsValidation = ((readoutsValidation.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
-
-        # Test data
+        
         specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
-        readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
+
+        # Normalize
+        readoutsTrain = ((readoutsTrain.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
+        readoutsValidation = ((readoutsValidation.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
         readoutsTest = ((readoutsTest.set_index(['vehicle_id', 'time_step'])-mu)/sigma).reset_index()
-        specificationsTrain["dataset"]="train"
-        specificationsValidation["dataset"]="validation"
-        specificationsTest["dataset"]="test"
+        
+        specificationsTrain["dataset"] = "train"
+        specificationsValidation["dataset"] = "validation"
+        specificationsTest["dataset"] = "test"
         
         specs = pd.concat([specificationsTrain,specificationsValidation,specificationsTest])
         specs_varnames = specs.set_index(["vehicle_id","dataset"]).columns

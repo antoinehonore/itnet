@@ -44,6 +44,7 @@ class UniModalAttention(torch.nn.Module):
         self.qk_type = qk_type
         self.d_qk = d_qk
         self.weight_type = weight_type
+        self.dropout = torch.nn.Dropout(dropout_p)
 
         if attention_type == "vanilla":
             self.causal_attn_func = self.causal_scaled_dot_product_attention
@@ -112,7 +113,7 @@ class UniModalAttention(torch.nn.Module):
         # Were whole rows are NaNs, there was no data prior to the required prediction time. Replace weights with zeros.
         #V = V[:, :, keep_idx[0,0,:],:]
         #[:,:,keep_idx[0,0,:],:]
-        y = torch.einsum('nhtl,nhlc->nhtc', A, V)
+        y = torch.einsum('nhtl,nhlc->nhtc', self.dropout(A), V)
         return y
     
     def get_weights(self, Q, K, t1, t2, tau = 1):
