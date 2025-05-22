@@ -163,10 +163,6 @@ def main(args):
     dataset.class_weights = class_weights
     
     batch_size = 1
-    impute = {"imputer": None}
-
-    if hparams["data"]["impute"] == "linear":
-        impute = {} 
 
     model_params["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
@@ -202,18 +198,27 @@ def main(args):
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
         limit_train_batches = None
+        limit_test_batches = None
+        limit_val_batches = None
 
         if not (profiler is None):
             n_epochs = 9
             check_val_every_n_epoch = 10
             log_every_n_steps = 2
             limit_train_batches = 1000
-        extra_dtraining_kwargs = {"precision": "bf16-mixed", "use_distributed_sampler":False, "num_sanity_val_steps":0}
-
+            limit_test_batches = 10
+            limit_val_batches = 10
+            
+        extra_dtraining_kwargs = {  "precision": "bf16-mixed", 
+                                    "use_distributed_sampler":False,
+                                    "num_sanity_val_steps":0}
+                                    
+        limits = {}
+        limits = dict( limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches)
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1,
-                            enable_checkpointing=False, profiler=profiler, limit_test_batches=10, limit_train_batches=limit_train_batches,**extra_dtraining_kwargs)
+                            enable_checkpointing=False, profiler=profiler,**extra_dtraining_kwargs, **limits)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     
