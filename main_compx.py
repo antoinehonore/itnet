@@ -175,15 +175,18 @@ def main(args):
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
+    
     val_set =  TheDataset(valdata)
     val_set.class_weights = class_weights
+    val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
-        val_set = Subset(dataset, fold_val_index)
+        val_set_internal = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
-        val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+        val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
+
         test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
 
         log_dir = "lightning_logs"
@@ -221,8 +224,9 @@ def main(args):
                             enable_progress_bar=args.v>1,
                             enable_checkpointing=False, profiler=profiler,**extra_dtraining_kwargs, **limits)
         
-        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_internal_dataloader)
     
+        trainer.test(ltrainer, dataloaders=val_dataloader)
         trainer.test(ltrainer, dataloaders=test_dataloader)
         
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
