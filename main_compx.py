@@ -97,7 +97,7 @@ def get_tr_val_index_lists(data):
 
     #tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
     #val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-    tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
+    
     return tr_val_index_lists#training_dataset, validation_dataset#, zip(tr_fold_indices, val_fold_indices)
 
 def init_tau(data):
@@ -170,6 +170,7 @@ def main(args):
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
+    #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
     all_fold_results = []
     test_set =  TheDataset(testdata)
@@ -179,7 +180,7 @@ def main(args):
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
-        #val_set = Subset(dataset, fold_val_index)
+        val_set = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
