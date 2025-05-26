@@ -79,8 +79,8 @@ class lTrainer(L.LightningModule):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
-        self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
+        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def compute_loss(self, batch):
@@ -113,13 +113,17 @@ class lTrainer(L.LightningModule):
         log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-        
+        norms = self.model.fusion_model.estimate_fusion.norms
+
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
         
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-    
+        if batch_idx == 0:
+            norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
+            self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
+
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
@@ -162,8 +166,11 @@ class lTrainer(L.LightningModule):
         else:
             y = batch["targets"]
         y_n = y
-
         if batch_idx == 0 and (self.logger is not None):
+            norms_mean = {"norm/"+k+"/val":norms[k].mean() for k in norms.keys()}
+
+            self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
+
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
             fig, axes = self.val_senspec_figure
             ax = axes[0]
@@ -233,7 +240,6 @@ class lTrainer(L.LightningModule):
 
         scores = self.get_scores(y, yhat, yclass, suffix="/val")
         self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
-
 
         i = 0
         ax = self.val_recon_figure[1]
