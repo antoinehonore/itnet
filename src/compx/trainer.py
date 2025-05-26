@@ -150,6 +150,7 @@ class lTrainer(L.LightningModule):
         self.test_scores["norms"].append(norms)
     
     def on_test_epoch_end(self):
+        scores = {}
         if len(self.test_scores["yclass"]) >0:
             yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
@@ -157,7 +158,6 @@ class lTrainer(L.LightningModule):
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
 
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
-        return scores
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
 
@@ -206,12 +206,12 @@ class lTrainer(L.LightningModule):
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
-        thescores["Acc"+suffix] = multiclass_accuracy(yhat,yclass, average="micro")
-        thescores["F1score"+suffix] = multiclass_f1_score(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Prec"+suffix] = multiclass_precision(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Recall"+suffix] = multiclass_recall(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass, num_classes=yhat.shape[-1])
-        thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass, num_classes=yhat.shape[-1])
+        thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")
+        thescores["F1score"+suffix] = multiclass_f1_score(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["Prec"+suffix] = multiclass_precision(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["Recall"+suffix] = multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["AUROC"+suffix] = multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
+        thescores["AUPRC"+suffix] = multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
         cm = self.compute_confmat(yhat, yclass)
         thescores["cost" + suffix] = (self.cost_matrix * cm).sum() / cm.sum()
 
@@ -235,7 +235,7 @@ class lTrainer(L.LightningModule):
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
-        self.log_dict(scores,on_epoch=True,on_step=False,batch_size=1)
+        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [], "yhat": [], "yclass": []}
 
     def on_validation_epoch_end(self):
