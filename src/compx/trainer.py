@@ -11,7 +11,7 @@ import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
 from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc,multiclass_auroc
 
-# Matplotlib unique combinations of color (colorblind friendly), marker and styles,  from ChatPGT
+# Matplotlib unique combinations of color (colorblind friendly), marker and styles, from ChatGPT
 color_marker_style = [
     {"color": "#E69F00", "marker": "o", "linestyle": "-"},   # orange
     {"color": "#56B4E9", "marker": "s", "linestyle": "--"},  # sky blue
@@ -71,6 +71,8 @@ class lTrainer(L.LightningModule):
         self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
+        self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
+        self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
     def configure_model(self):
         if self.model is not None:
             return
@@ -84,8 +86,8 @@ class lTrainer(L.LightningModule):
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def compute_loss(self, batch):
-        y = batch["targets"]
-        yclass = batch["targets2"]
+        y = batch["targets_OH"]
+        yclass = batch["targets_int"]
         yhat = self.model(batch)
 
         self.train_scores["y"].append(y.squeeze(0))
@@ -130,11 +132,11 @@ class lTrainer(L.LightningModule):
 
         yclass = None
         y = None
-        if "targets2" in batch.keys():
-            yclass = batch["targets2"]
+        if "targets_int" in batch.keys():
+            yclass = batch["targets_int"]
         
-        if "targets" in batch.keys():
-            y = batch["targets"]
+        if "targets_OH" in batch.keys():
+            y = batch["targets_OH"]
         
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
@@ -155,16 +157,17 @@ class lTrainer(L.LightningModule):
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
 
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
+        return scores
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
 
-        yclass = batch["targets2"]
+        yclass = batch["targets_int"]
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
-        if not ("targets" in batch.keys()):
+        if not ("targets_OH" in batch.keys()):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
-            y = batch["targets"]
+            y = batch["targets_OH"]
         y_n = y
         if batch_idx == 0 and (self.logger is not None):
             norms_mean = {"norm/"+k+"/val":norms[k].mean() for k in norms.keys()}
@@ -199,6 +202,7 @@ class lTrainer(L.LightningModule):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
+
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
@@ -208,8 +212,9 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] = multiclass_recall(yhat,yclass, average="micro", num_classes=yhat.shape[-1])
         thescores["AUROC"+suffix] = multiclass_auroc(yhat,yclass, num_classes=yhat.shape[-1])
         thescores["AUPRC"+suffix] = multiclass_auprc(yhat,yclass, num_classes=yhat.shape[-1])
+        cm = self.compute_confmat(yhat, yclass)
+        thescores["cost" + suffix] = (self.cost_matrix * cm).sum() / cm.sum()
 
-        multiclass_f1_score
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
@@ -249,6 +254,7 @@ class lTrainer(L.LightningModule):
             self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
         self.val_scores = {"y": [], "yhat": [], "yclass": []}
+        return scores
 
     def configure_optimizers(self):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
