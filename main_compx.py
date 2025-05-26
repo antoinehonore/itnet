@@ -122,6 +122,7 @@ def main(args):
     os.makedirs(output_fname.replace(".pklz",""),exist_ok=True)
     exp_name_ = os.path.join(os.path.basename(os.path.dirname(cfg_fname)), 
                             os.path.basename(cfg_fname).replace(".json",""))
+    log_dir = "lightning_logs"
     exp_name = exp_name_
     torch.set_num_threads(4)
     seed = 12345
@@ -189,7 +190,6 @@ def main(args):
 
         test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
 
-        log_dir = "lightning_logs"
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
@@ -201,9 +201,9 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None
-        limit_test_batches = None
-        limit_val_batches = None
+        limit_train_batches = 2
+        limit_test_batches = limit_train_batches
+        limit_val_batches = limit_train_batches
 
         if not (profiler is None):
             n_epochs = 9
@@ -212,30 +212,33 @@ def main(args):
             limit_train_batches = 1000
             limit_test_batches = 10
             limit_val_batches = 10
-            
-        extra_dtraining_kwargs = {  "precision": "bf16-mixed", 
-                                    "use_distributed_sampler":False,
-                                    "num_sanity_val_steps":0}
-                                    
+        
+        extra_dtraining_kwargs = {"precision": "bf16-mixed", 
+                                  "use_distributed_sampler":False,
+                                  "num_sanity_val_steps":0}
+        
         limits = {}
-        limits = dict( limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches)
+        limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
+
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1,
-                            enable_checkpointing=False, profiler=profiler,**extra_dtraining_kwargs, **limits)
+                            enable_checkpointing=False, profiler=profiler,
+                            **extra_dtraining_kwargs, **limits)
         
-        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_internal_dataloader)
+        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     
-        trainer.test(ltrainer, dataloaders=val_dataloader)
-        trainer.test(ltrainer, dataloaders=test_dataloader)
-        
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
         outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
-        results_val =    trainer.validate(ltrainer, dataloaders=val_dataloader)
+        results_val_internal =    trainer.validate(ltrainer, dataloaders=val_internal_dataloader)
+
+        trainer.test(ltrainer, dataloaders=val_internal_dataloader)
+        trainer.test(ltrainer, dataloaders=test_dataloader)
+        
         results_test = []
         
         results = [results_train, results_val, results_test]
