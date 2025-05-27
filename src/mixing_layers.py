@@ -3,7 +3,7 @@ import torch
 
 class LinearLayer(torch.nn.Module):
     def __init__(self,d_in):
-        super(LinearOutput,self).__init__()
+        super(LinearLayer,self).__init__()
         self.linear_function = torch.nn.Linear(d_in, d_in, bias=False)
 
     def forward(self, batch):

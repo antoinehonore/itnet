@@ -8,9 +8,7 @@ import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
 from src.compx.mydata import TheDataset, get_data
 from src.compx.trainer import lTrainer
-
 import os 
-
 import socket
 import json
 import argparse
@@ -214,7 +212,6 @@ def main(args):
                                   "use_distributed_sampler":False,
                                   "num_sanity_val_steps":0}
         
-        limits = {}
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
 
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
@@ -232,16 +229,11 @@ def main(args):
         
         results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
         results_val_internal =    trainer.validate(ltrainer, dataloaders=val_internal_dataloader)
-
-        trainer.test(ltrainer, dataloaders=val_internal_dataloader)
-        trainer.test(ltrainer, dataloaders=val_dataloader)
-
-        trainer.test(ltrainer, dataloaders=test_dataloader)
+        results_val = trainer.validate(ltrainer, dataloaders=val_dataloader)
+        results_test = trainer.test(ltrainer, dataloaders=test_dataloader)
         
-        results_test = []
+        results = [results_train, results_val_internal, results_val, results_test]
         
-        results = [results_train, results_val_internal, results_test]
-
         results.append(last_checkpoint)
         
         write_pklz(outputfname, results)

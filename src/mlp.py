@@ -2,9 +2,9 @@ import torch
 from src.activations import get_activation
 
 
-class LinearBlock(torch.nn.Module):
+class LinearResidualBlock(torch.nn.Module):
     def __init__(self, in_dim, out_dim, activation, dropout_p=0,layernorm=False,skipconnections=False,skiptemperature=False,bias=True):
-        super(LinearBlock,self).__init__()
+        super(LinearResidualBlock,self).__init__()
         self.linear_function = torch.nn.Linear(in_dim, out_dim,bias=bias)
         self.dropout_function = torch.nn.Dropout(dropout_p)
         self.activation_function = get_activation(activation)()
@@ -49,7 +49,7 @@ class MLP(torch.nn.Module):
         layers_sizes = [input_size] + layers_sizes + [output_size]
         self.layers = []
         for i in range(len(layers_sizes)-1):
-            self.layers.append(LinearBlock(layers_sizes[i], layers_sizes[i+1], activation, **all_params))
+            self.layers.append(LinearResidualBlock(layers_sizes[i], layers_sizes[i+1], activation, **all_params))
         self.layers = torch.nn.Sequential(*self.layers)
 
     def forward(self, x):
