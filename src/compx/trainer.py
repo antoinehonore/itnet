@@ -116,7 +116,7 @@ class lTrainer(L.LightningModule):
         log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-        norms = self.model.fusion_model.estimate_fusion.norms
+        norms = self.model.itnet.MMA.norms
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
@@ -159,7 +159,7 @@ class lTrainer(L.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
         yhat = self.model(batch)
-        norms = self.model.fusion_model.estimate_fusion.norms
+        norms = self.model.itnet.MMA.norms
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
@@ -199,9 +199,9 @@ class lTrainer(L.LightningModule):
         y = y.to(torch.float)
         yclass = yclass.long()
         yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
-        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
+        yhat_softmax = torch.nn.functional.sigmoid(yhat)
 
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(, y)}
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
         thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")

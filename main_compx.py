@@ -2,12 +2,12 @@ import pandas as pd
 import torch
 import numpy as np 
 
-from src.itnet import ITGPT,TSdata
+from src.itnet import Itnet,TSdata
 import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
-from src.itgpt.mydata import TheDataset, get_data
-from src.itgpt.trainer import lTrainer
+from src.compx.mydata import TheDataset, get_data
+from src.compx.trainer import lTrainer
 import os 
 import socket
 import json
@@ -35,14 +35,14 @@ class Predictor(torch.nn.Module):
     def __init__(self, hparams):
         super(Predictor, self).__init__()
         self.hparams = hparams
-        self.itgpt = ITGPT(hparams)
+        self.itnet = Itnet(hparams)
     
     def forward(self, batch):
         thefeatures = {}
         thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
         thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if m!="reference"} }
         
-        yhat = self.itgpt(thefeatures)
+        yhat = self.itnet(thefeatures)
         return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):
