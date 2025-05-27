@@ -160,6 +160,7 @@ class lTrainer(L.LightningModule):
         yclass = batch["targets_int"]
         yhat = self.model(batch)
         norms = self.model.itnet.MMA.norms
+        
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
@@ -174,7 +175,7 @@ class lTrainer(L.LightningModule):
             fig, axes = self.val_senspec_figure
             ax = axes[0]
             ax.cla()
-            plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().numpy()
+            plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
             labels = list(norms.keys())
             for j in range(plot_data.shape[1]):
                 ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
@@ -183,8 +184,8 @@ class lTrainer(L.LightningModule):
             ax.set_ylabel("Modality contribution (%)")
             ax = axes[1]
             ax.cla()
-            ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
-            ax.plot(timeline, yclass[batch_idx].cpu().numpy(),label="True ",marker="o")
+            ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
+            ax.plot(timeline, yclass[batch_idx].cpu().float().numpy(),label="True ",marker="o")
             ax.legend()
             ax.set_xlabel("Time")
             ax.set_ylabel("Class index")

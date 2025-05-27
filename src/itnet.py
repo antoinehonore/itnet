@@ -241,6 +241,7 @@ class ITGPT(torch.nn.Module):
         the_decoder_input["reference"] = TSdata(the_encoded_data.unsqueeze(1), batch["reference"].timeline)
         yhat = self.decodeMMA( the_decoder_input, mode="decode")
         return yhat
+        
 # A wrapper around MultiModalAttention
 class Itnet(torch.nn.Module):
     def __init__(self, hparams):
