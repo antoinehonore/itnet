@@ -12,12 +12,12 @@ class LinearLayer(torch.nn.Module):
 class OutputLayer(torch.nn.Module):
     def __init__(self,d_in, d_out, names, layer=LinearLayer):
         super(OutputLayer,self).__init__()
-
-        assert d_in==d_out, "Different input and output dimensions are NYI"
+        self.names = sorted(names)
+        assert d_in == d_out, "Different input and output dimensions are NYI"
         self.linear_functions =  torch.nn.ModuleDict({mname: layer(d_in) for mname in names})
 
     def forward(self, batch):
-        output = {mname: self.linear_functions[mname](batch[mname]) for mname in batch.keys()}
+        output = {mname: self.linear_functions[mname](batch[mname]) for mname in self.names}
         yhat = torch.cat(list(output.values()), dim=1)
         yhat = yhat.sum(1)
         return yhat
