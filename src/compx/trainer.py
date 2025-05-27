@@ -61,7 +61,7 @@ class lTrainer(L.LightningModule):
         self.val_recon_figure       = plt.subplots(figsize=(5,4))
         self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,6))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
-        
+
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
         self.automatic_optimization = False
         self.the_training_step  = 0
@@ -116,7 +116,7 @@ class lTrainer(L.LightningModule):
         log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-        norms = self.model.itnet.estimate_fusion.norms
+        norms = self.model.fusion_model.estimate_fusion.norms
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
@@ -132,7 +132,7 @@ class lTrainer(L.LightningModule):
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         yhat = self.model(batch)
-        norms = self.model.itnet.estimate_fusion.norms
+        norms = self.model.fusion_model.estimate_fusion.norms
         yclass = None
         y = None
         if "targets_int" in batch.keys():
@@ -159,24 +159,22 @@ class lTrainer(L.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
         yhat = self.model(batch)
-        norms = self.model.itnet.estimate_fusion.norms
-
+        norms = self.model.fusion_model.estimate_fusion.norms
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
             y = batch["targets_OH"]
         
         if batch_idx == 0 and (self.logger is not None):
-            norms_mean = {"norm/"+k+"/val": norms[k].mean() for k in norms.keys()}
+            norms_mean = {"norm/"+k+"/val":norms[k].mean() for k in norms.keys()}
 
             self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
 
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
-            
             fig, axes = self.val_senspec_figure
             ax = axes[0]
             ax.cla()
-            plot_data = torch.cat(list(norms.values()), dim=-1)[batch_idx, 0].cpu().numpy()
+            plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().numpy()
             labels = list(norms.keys())
             for j in range(plot_data.shape[1]):
                 ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
@@ -201,9 +199,9 @@ class lTrainer(L.LightningModule):
         y = y.to(torch.float)
         yclass = yclass.long()
         yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
-        yhat_softmax = torch.nn.functional.softmax(yhat)
+        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
 
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_sigmoid, y)}
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(, y)}
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
         thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")

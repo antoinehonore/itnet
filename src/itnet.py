@@ -18,17 +18,17 @@ def add_one(x, dim=1):
     return out
 
 class UniModalAttention(torch.nn.Module):
-    def __init__(self, d_in, d_qk, d_v, n_layers_qk, qk_type, bias=True, activation="relu", layernorm=False, 
-        skipconnections=False, skiptemperature=False, init_random=False, init_tau=1, 
-        weight_type="gaussian", dropout_p=0, attention_type="vanilla",name="default"
+    def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qk, qk_type, bias=True,  init_random=False, init_tau=1, 
+        weight_type="gaussian", attention_type="vanilla",name="default",**kw_args_mlp
     ):
+        #activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, dropout_p=0,
         super(UniModalAttention,self).__init__()
         self.name = name
         self.feature_map_k = partial(add_one, dim=0)
         self.qk_type = qk_type
         self.d_qk = d_qk
         self.weight_type = weight_type
-        self.dropout = torch.nn.Dropout(dropout_p)
+        self.dropout = torch.nn.Dropout(kw_args_mlp["dropout_p"])
 
         if attention_type == "vanilla":
             self.causal_attn_func = self.causal_scaled_dot_product_attention
@@ -37,50 +37,70 @@ class UniModalAttention(torch.nn.Module):
         else:
             raise Exception("Unknown attention_type={}".format(attention_type))
 
-        self.W_K = MLP(d_in, [d_qk]*n_layers_qk, d_qk, activation, bias=bias, dropout_p=dropout_p,
-                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
-        #self.W_K.compile()    
+        self.W_K = MLP(d_kv_in, [d_qk]*n_layers_qk, d_qk, bias=bias, **kw_args_mlp)
         
-        self.W_V = MLP(d_in, [d_qk]*n_layers_qk, d_v, activation, bias=bias, dropout_p=dropout_p,
-                                layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
-        #self.W_V.compile()
+        self.W_V = MLP(d_kv_in, [d_qk]*n_layers_qk, d_v, bias=bias, **kw_args_mlp)
+        
+        self.W_Q = MLP(d_q_in, [d_qk]*n_layers_qk, d_qk, bias=False, **kw_args_mlp)
         
         self.attn_matrices = None
         temperature_init = init_tau
         self.history_temperature = torch.nn.Parameter(torch.tensor(math.log(temperature_init), dtype=torch.float32),requires_grad=True) 
-        
-    def forward(self, X, t1=None, Q=None):
-        t2 = X[:, 0, :, -1]
+        if "PE" in self.qk_type:
+            self.position_encoding = PositionalEncoding(self.d_qk)
+    
+    def forward(self, data_q, data_kv):
+        Q, q_timeline = self.compute_Q(data_q)
+        K, V, kv_timeline = self.compute_KV(data_kv)
 
+        out = self.causal_attn_func(Q, K, V, q_timeline, kv_timeline)
+        
+        if out.isnan().any():
+            raise Exception("{} contains NANs !!!".format(self.name))
+        return out
+    
+
+    def compute_KV(self, data_kv):
+        timeline = data_kv.timeline
         # If all the data should be used to compute Q and K (i.e. the attention weights)
         if "data" in self.qk_type:
-            input_keys = X
+            input_keys = data_kv.data
             K = self.W_K(input_keys)
             if "PE" in self.qk_type:
-                t2_pe = PositionalEncoding(self.d_qk)(t2)
-                K = K + t2_pe
+                #timeline = 
+                K = K + self.position_encoding(timeline)
             
-            input_values = X
+            input_values = data_kv.data
 
         # If we only use the timestamps to compute thte attention weights
         elif self.qk_type == "time":
-            input_keys = X[..., [-1]]
+            input_keys = data_kv.data[..., [-1]]
 
             K = self.feature_map_k(self.W_K(input_keys))
         
-            input_values = X[...,:-2]
+            input_values = data_kv.data[...,:-2]
 
         if not (self.W_V is None):
             V = self.W_V(input_values)
         else:
             V = input_values
+        return K,V, timeline
+
+    def compute_Q(self,data_q):
+        timeline = data_q.timeline
+
+        Q = self.W_Q(data_q.data)
         
-        out = self.causal_attn_func(Q, K, V, t1, t2)
+        if self.qk_type == "time":
+            Q = self.feature_map_q(Q)
         
-        if out.isnan().any():
-            raise Exception("{} contains NANs !!!".format(self.name))
-        return out
-        
+        elif self.qk_type == "data+PE":
+            t1_pe = PositionalEncoding(self.d_qk)(timeline)
+            Q = Q + t1_pe
+        else:
+           raise Exception("Unknown qk_type={}".format(self.qk_type))
+        return Q, timeline
+
     def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6):
         y = cross_causal_dot_product(torch.tanh(Q), torch.tanh(K), V, t1[0], t2[0])
         self.attn_matrices = torch.zeros(1,1,2,2)
@@ -125,78 +145,134 @@ class UniModalAttention(torch.nn.Module):
         return self.A
 
 
+class TSdata:
+    data: torch.Tensor
+    timeline: torch.Tensor
+    def __init__(self,data,timeline):
+        self.data = data
+        self.timeline = timeline
+
+
 class MultiModalAttention(torch.nn.Module):
-    def __init__(self, modalities_dimension, d_out, d_qk,  L=1, n_layers_qk=None,bias=True,
-                 n_layers=0, activation="relu", 
-                 layernorm=False, skipconnections=False, skiptemperature=False, 
-                 qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", dropout_p=0,attention_type="vanilla"):
-        super(MultiModalAttention,self).__init__()
-        self.M = len(modalities_dimension["k"])
-        self.d_v = d_out
-        self.d_out = d_out
+    def __init__(self, dimensions, n_layers_qk=None, bias=True, output_type=None,
+                 n_layers=0, qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", attention_type="vanilla", **kw_args_mlp):
+        super(MultiModalAttention, self).__init__()
+        self.dimensions = dimensions
         self.weight_type = weight_type
         self.qk_type = qk_type
         self.attention_type = attention_type
 
-        self.modalities_dimension = modalities_dimension
-        self.d_qk = d_qk
         self.feature_map_q = add_one
         self.n_layers_qk = n_layers_qk if not (n_layers_qk is None) else n_layers
         self.init_random = init_random
+        self.output_type = output_type
 
-        self.d_in_q = self.modalities_dimension["q"]
+        self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, d_kv_in, d_qk, d_v, self.n_layers_qk, qk_type,
+                                attention_type=attention_type, init_random=init_random, init_tau=init_tau, weight_type=weight_type,
+                                name=mname, **kw_args_mlp)
+                                for mname, (d_q_in, d_kv_in, d_qk, d_v) in self.dimensions.items() if mname != "reference"})
         
-        self.uni_modal_models = torch.nn.ModuleDict({mname: UniModalAttention(d_in, d_qk, self.d_v, self.n_layers_qk, qk_type,
-                                activation=activation, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,
-                                attention_type=attention_type, init_random=init_random,init_tau=init_tau,weight_type=weight_type,
-                                dropout_p=dropout_p, name=mname)
-                                    for mname,d_in in self.modalities_dimension["k"].items() if mname != "reference"})
-        
-        self.W_Q = MLP(self.d_in_q, [self.d_qk]*self.n_layers_qk, self.d_qk, activation, bias=False,dropout_p=dropout_p,
-                    layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature)
-        
-        if not self.init_random:
-            self.W_Q.linear_layers[0].weight = torch.nn.Parameter(torch.tensor([[1.]],dtype=torch.float32),requires_grad=False)
-        
-        self.output_layer = OutputLayer(self.d_v, d_out, self.uni_modal_models.keys(), layer=QLinear)
-        
-    def forward(self, batch, pool=None):
+        self.output_layer = None
+        if self.output_type == "qlinear":
+            output_d_in = [l[-1] for l in self.dimensions.values()]
+            output_d_in = output_d_in[0]
+
+            self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), layer=QLinear)
+
+
+    def forward(self, batch, mode="encode"):
         """
             Batch is a dictionnary : {"reference":  shape (N, 1, T_1, d_1), "m1":  shape (N,1,T_2,d_2), ...}
         """
-        # keep the timeline intact
-        t1 = batch["reference"][:, 0, :, -1]
 
-        Q = self.W_Q(batch["reference"])
-        
-        if self.qk_type == "time":
-            Q = self.feature_map_q(Q)
-        
-        elif self.qk_type == "data+PE":
-            t1_pe = PositionalEncoding(self.d_qk)(t1)
-            Q = Q + t1_pe
+        data_q = batch["reference"]
+        if mode =="encode":
+            results = {mname: uni_modal.forward(data_q, batch[mname]) for mname, uni_modal in self.uni_modal_attention.items()}
+            norms      = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
+            tot_norm   = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
+            self.norms = {k: 100 * v / tot_norm for k,v in norms.items()}
+            
+        elif mode == "decode":
+            results = {mname: uni_modal.forward(batch[mname],data_q) for mname, uni_modal in self.uni_modal_attention.items()}
         else:
-            raise Exception("Unknown qk_type={}".format(self.qk_type))
-        # from functorch import combine_state_for_ensemble, vmap
-        # fmodel, params, buffers = combine_state_for_ensemble(list(self.uni_modal_models.values()))
-        # Compute individual modality predictions sequentially
-        # funcs = [partial(uni_modal.forward, t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()]
+            raise Exception("Unknown MMA mode={}".format(mode))
 
-        results = {mname:uni_modal.forward(batch[mname], t1=t1, Q=Q) for mname, uni_modal in self.uni_modal_models.items()}
-        norms = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
-        tot_norm = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
-        self.norms = {k: 100*v/tot_norm for k,v in norms.items()}
+        yhat = results
+        if not (self.output_layer is None):
+            yhat = self.output_layer(results)
         
-        yhat = self.output_layer(results)
-        # Concatenate on the head dimension
-        #Zout = torch.cat(results, dim=1)
         return yhat
 
 
 # A wrapper around MultiModalAttention
+class ITGPT(torch.nn.Module):
+    def __init__(self, hparams):
+        super(ITGPT, self).__init__()
+        self.hparams = hparams  
+        
+        self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
+        self.data_augmentation_n = hparams["data_augmentation_n"]
+        
+        kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
+
+        self.encodeMMA = MultiModalAttention(hparams["modalities_dimension"], n_layers=hparams["n_layers"], 
+                n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], output_type=hparams["output_type"],
+                init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
+                weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
+            )
+
+        # 
+        # d_in_q, d_in_kv, d_qk, d_out
+        decoder_modalities = {mname: (d_in_q, d_out, d_qk,d_in_kv ) for mname, (d_in_q, d_in_kv, d_qk, d_out) in hparams["modalities_dimension"].items()}
+
+        self.decodeMMA = MultiModalAttention(decoder_modalities, n_layers=hparams["n_layers"], 
+                n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
+                weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
+            )
+            
+    def forward(self, batch, pool=None,only_last=True):
+        """
+        batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
+        """
+        thedata = {m: drop(batch[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else batch[m] for m in batch.keys()}
+        the_encoded_data = self.encodeMMA( thedata )
+        
+        the_decoder_input = {m: TSdata(batch[m].data[...,[-1]], batch[m].timeline) for m in batch.keys() if m!= "reference"}
+        the_decoder_input["reference"] = TSdata(the_encoded_data.unsqueeze(1), batch["reference"].timeline)
+        yhat = self.decodeMMA( the_decoder_input, mode="decode")
+        return yhat
+# A wrapper around MultiModalAttention
 class Itnet(torch.nn.Module):
     def __init__(self, hparams):
         super(Itnet, self).__init__()
+        self.hparams = hparams  
+        
+        self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
+        self.data_augmentation_n = hparams["data_augmentation_n"]
+        
+        kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
+        
+        self.MMA = MultiModalAttention(hparams["modalities_dimension"], n_layers=hparams["n_layers"], 
+                n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], output_type=hparams["output_type"],
+                init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
+                weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
+            )
+
+        # 
+    def forward(self, batch, pool=None,only_last=True):
+        """
+        batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
+        """
+        thedata = {m: drop(batch[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else batch[m] for m in batch.keys()}
+        yhat = self.MMA( thedata )
+        return yhat
+
+
+
+# A wrapper around MultiModalAttention
+class Itnet2(torch.nn.Module):
+    def __init__(self, hparams):
+        super(Itnet2, self).__init__()
         self.hparams = hparams  
         self.M = len(hparams["modalities_dimension"])
         self.d_out = hparams["d_out"] #if "d_out" in hparams.keys() else hparams["h"] + hparams["h"]
@@ -210,23 +286,21 @@ class Itnet(torch.nn.Module):
         self.d_qk = hparams["d_qk"]
         
         self.pool = None
-       
-        self.estimate_fusion = MultiModalAttention(self.modalities_dimension, self.d_out, 
-                d_qk=self.d_qk, n_layers=hparams["n_layers"], activation=hparams["activation"],
+        kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
+
+        self.MMA = MultiModalAttention(self.modalities_dimension, self.d_out, 
+                d_qk=self.d_qk, n_layers=hparams["n_layers"], 
                 n_layers_qk=hparams["n_layers_qk"], bias=hparams["bias"], 
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
-                weight_type=hparams["weight_type"], dropout_p=hparams["dropout_p"],
-                qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], skipconnections=hparams["skipconnections"],
-                skiptemperature=hparams["skiptemperature"]
+                weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
             )
 
     def forward(self, batch, pool=None,only_last=True):
         """
         batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
-
         thedata = {m: drop(batch[m], self.data_augmentation_pdrop, self.data_augmentation_n) if m!="reference" else batch[m] for m in batch.keys()}
-        yhat = self.estimate_fusion( thedata )
+        yhat = self.MMA( thedata )
         return yhat
 
 def drop(x, p, n):
