@@ -67,9 +67,10 @@ class lTrainer(L.LightningModule):
         self.the_training_step  = 0
         self.model = model
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[]}
-        self.train_scores = {"y": [],   "yhat": [], "yclass":[]}
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
+
 
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
@@ -130,21 +131,17 @@ class lTrainer(L.LightningModule):
         if batch_idx ==0:
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
+        yhat = self.model(batch)
+        norms = self.model.fusion_model.estimate_fusion.norms
         yclass = None
         y = None
         if "targets_int" in batch.keys():
             yclass = batch["targets_int"]
-        
+            self.test_scores["yclass"].append(yclass.squeeze(0))
+
         if "targets_OH" in batch.keys():
             y = batch["targets_OH"]
-        
-        yhat = self.model(batch)
-        norms = self.model.fusion_model.estimate_fusion.norms
-        if not (y is None):
             self.test_scores["y"].append(y.squeeze(0))
-        
-        if not (yclass is None):
-            self.test_scores["yclass"].append(yclass.squeeze(0))
 
         self.test_scores["yhat"].append(yhat.detach().squeeze(0))
         self.test_scores["norms"].append(norms)
@@ -160,7 +157,6 @@ class lTrainer(L.LightningModule):
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-
         yclass = batch["targets_int"]
         yhat = self.model(batch)
         norms = self.model.fusion_model.estimate_fusion.norms
@@ -168,7 +164,7 @@ class lTrainer(L.LightningModule):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
             y = batch["targets_OH"]
-        y_n = y
+        
         if batch_idx == 0 and (self.logger is not None):
             norms_mean = {"norm/"+k+"/val":norms[k].mean() for k in norms.keys()}
 
@@ -202,8 +198,10 @@ class lTrainer(L.LightningModule):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
+        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
+        yhat_softmax = torch.nn.functional.softmax(yhat)
 
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(torch.nn.functional.sigmoid(yhat), y)    }
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_sigmoid, y)}
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
         thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")
@@ -236,7 +234,7 @@ class lTrainer(L.LightningModule):
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
         self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = {"y": [], "yhat": [], "yclass": []}
+        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def on_validation_epoch_end(self):
         y = torch.cat(self.val_scores["y"]).squeeze(-1)
@@ -253,7 +251,7 @@ class lTrainer(L.LightningModule):
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
-        self.val_scores = {"y": [], "yhat": [], "yclass": []}
+        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
         return scores
 
     def configure_optimizers(self):
