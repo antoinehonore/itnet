@@ -3,7 +3,7 @@ from src.activations import get_activation
 
 
 class LinearResidualBlock(torch.nn.Module):
-    def __init__(self, in_dim, out_dim, activation, dropout_p=0,layernorm=False,skipconnections=False,skiptemperature=False,bias=True):
+    def __init__(self, in_dim, out_dim, activation="relu", dropout_p=0, layernorm=False,skipconnections=False,skiptemperature=False,bias=True):
         super(LinearResidualBlock,self).__init__()
         self.linear_function = torch.nn.Linear(in_dim, out_dim,bias=bias)
         self.dropout_function = torch.nn.Dropout(dropout_p)
@@ -42,18 +42,18 @@ class LinearResidualBlock(torch.nn.Module):
         return y
 
 class MLP(torch.nn.Module):
-    def __init__(self, input_size, layers_sizes, output_size, activation, dropout_p=0, layernorm=False, skipconnections=False, skiptemperature=False,bias=True):
+    def __init__(self, input_size, layers_sizes, output_size, activation="relu", dropout_p=0, layernorm=False, skipconnections=False, skiptemperature=False,bias=True):
         super(MLP,self).__init__()
         all_params = dict(dropout_p=dropout_p, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,bias=bias)
         
         layers_sizes = [input_size] + layers_sizes + [output_size]
         self.layers = []
         for i in range(len(layers_sizes)-1):
-            self.layers.append(LinearResidualBlock(layers_sizes[i], layers_sizes[i+1], activation, **all_params))
+            thelayer = LinearResidualBlock(layers_sizes[i], layers_sizes[i+1], activation, **all_params)
+            self.layers.append(thelayer)
         self.layers = torch.nn.Sequential(*self.layers)
 
     def forward(self, x):
         x = self.layers(x)
         return x
-
 
