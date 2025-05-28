@@ -50,26 +50,29 @@ class ItnetBlock(torch.nn.Module):
         the_decoder_input = {m: TSdata(batch[m].data[...,[-1]], batch[m].timeline) for m in batch.keys() if m!= "reference"}
         
         the_encoded_data = self.encodeMMA(batch)
-
-        yhat = self.activation_function(the_encoded_data)
+        
+        the_encoded_data = self.activation_function(the_encoded_data)
+        
         if self.hparams["itnet_skipconnections"]:
-            yhat = yhat + previous_encoded_data 
-
-        if  self.decoder:
+            the_encoded_data = the_encoded_data + previous_encoded_data 
+        
+        if self.decoder:
             the_decoder_input["reference"] = TSdata(the_encoded_data.unsqueeze(1), batch["reference"].timeline)
             
             yhat = self.decodeMMA(the_decoder_input, mode="decode")
             yhat = {m: TSdata(yhat[m], batch[m].timeline) for m in yhat.keys()}
-            yhat["reference"] = batch["reference"]
+            yhat["reference"] = batch["reference"] 
+        else:
+            yhat = batch
         return yhat, the_encoded_data
+
 
 class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
         super(ITGPT, self).__init__()
         self.hparams = hparams
-        
         self.model = torch.nn.Sequential(*[ItnetBlock(hparams,decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
 
-    def forward(self,batch):
-        yhat = self.model(batch)
-        return yhat
+    def forward(self, x):
+        xhat, z = self.model(x)
+        return xhat, z
