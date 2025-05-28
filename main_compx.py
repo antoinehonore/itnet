@@ -210,8 +210,8 @@ def main(args):
             limit_val_batches = 10
         
         extra_dtraining_kwargs = {"precision": "bf16-mixed", 
-                                  "use_distributed_sampler":False,
-                                  "num_sanity_val_steps":0}
+                                  "use_distributed_sampler": False,
+                                  "num_sanity_val_steps": 0}
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
 

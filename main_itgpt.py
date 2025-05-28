@@ -2,12 +2,14 @@ import pandas as pd
 import torch
 import numpy as np 
 
-from src.itnet import ITGPT,TSdata
+from src.itnet import TSdata
+from src.itgpt import ITGPT
+
 import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
-from src.itgpt.mydata import TheDataset, get_data
-from src.itgpt.trainer import lTrainer
+from src.compx.mydata import TheDataset, get_data
+from src.ITGPT.trainer import lTrainer
 import os 
 import socket
 import json

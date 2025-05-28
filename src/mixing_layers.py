@@ -1,16 +1,16 @@
 
 import torch
 
-class LinearLayer(torch.nn.Module):
+class Linear(torch.nn.Module):
     def __init__(self,d_in):
-        super(LinearLayer,self).__init__()
+        super(Linear,self).__init__()
         self.linear_function = torch.nn.Linear(d_in, d_in, bias=False)
 
     def forward(self, batch):
         return self.linear_function(batch)
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self,d_in, d_out, names, layer=LinearLayer):
+    def __init__(self,d_in, d_out, names, layer=Linear):
         super(OutputLayer,self).__init__()
         self.names = sorted(names)
         assert d_in == d_out, "Different input and output dimensions are NYI"
@@ -19,6 +19,7 @@ class OutputLayer(torch.nn.Module):
     def forward(self, batch):
         output = {mname: self.linear_functions[mname](batch[mname]) for mname in self.names}
         yhat = torch.cat(list(output.values()), dim=1)
+        # yhat is (N,H,T,d)
         yhat = yhat.sum(1)
         return yhat
 
