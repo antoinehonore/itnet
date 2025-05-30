@@ -1,7 +1,7 @@
 
 import torch
 from src.mlp import MLP
-from src.mixing_layers import OutputLayer, QLinear, Linear
+from src.mixing_layers import OutputLayer, QLinear, Linear, FullOutputLayer
 from src.positional_encoding import PositionalEncoding
 from fast_transformers.cross_causal_product import cross_causal_dot_product
 
@@ -34,15 +34,12 @@ class MultiModalAttention(torch.nn.Module):
         self.output_layer = None
         if not (output_type is None):
             output_d_in = [l[-1] for l in self.dimensions.values()]
-            output_d_in = output_d_in[0]
-            if output_type == "qlinear":
-                thelayer = QLinear
-            elif output_type == "linear":
-                thelayer = Linear
-            else:
-                raise Exception("Unknown output_type={}".format(output_type))
 
-            self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), layer=thelayer)
+            if not ("full" in output_type):
+                output_d_in = output_d_in[0]
+                self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), output_type=output_type)
+            else:
+                self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()))
 
     def forward(self, batch, mode="encode"):
         """

@@ -25,7 +25,6 @@ class Itnet(torch.nn.Module):
         """
         batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
-        #drop(, self.data_augmentation_pdrop, self.data_augmentation_n)
         thedata = {m: batch[m] if m!="reference" else batch[m] for m in batch.keys()}
         yhat = self.MMA( thedata )
         return yhat

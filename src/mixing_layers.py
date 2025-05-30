@@ -10,8 +10,15 @@ class Linear(torch.nn.Module):
         return self.linear_function(batch)
 
 class OutputLayer(torch.nn.Module):
-    def __init__(self,d_in, d_out, names, layer=Linear):
+    def __init__(self,d_in, d_out, names, output_type="linear"):
         super(OutputLayer,self).__init__()
+        if output_type == "qlinear":
+            layer = QLinear
+        elif output_type == "linear":
+            layer = Linear
+        else:
+            raise Exception("Unknown output_type={}".format(output_type))
+
         self.names = sorted(names)
         assert d_in == d_out, "Different input and output dimensions are NYI"
         self.linear_functions =  torch.nn.ModuleDict({mname: layer(d_in) for mname in names})
@@ -21,6 +28,22 @@ class OutputLayer(torch.nn.Module):
         yhat = torch.cat(list(output.values()), dim=1)
         # yhat is (N,H,T,d)
         yhat = yhat.sum(1)
+        return yhat
+
+class FullOutputLayer(torch.nn.Module):
+    def __init__(self,d_in, d_out, names):
+        super(FullOutputLayer,self).__init__()
+        self.names = sorted(names)
+        #assert d_in == d_out, "Different input and output dimensions are NYI"
+        self.linear_functions =  torch.nn.Linear(d_in, d_out, bias=False)# for mname in names})
+
+    def forward(self, batch):
+        theinput = [batch[mname] for mname in self.names]
+        x = torch.cat(theinput, dim=1)
+        # x is (N,H,T,d)
+        x = x.transpose(1,2).flatten(start_dim=-2,end_dim=-1)
+        # x is (N,T,Hd)
+        yhat = self.linear_functions(x)
         return yhat
 
 class QLinear(torch.nn.Module):

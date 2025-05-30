@@ -172,7 +172,7 @@ def main(args):
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
-    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False, num_workers=args.j, pin_memory=True, persistent_workers=True)
 
     val_set =  TheDataset(valdata)
     val_set.class_weights = class_weights
