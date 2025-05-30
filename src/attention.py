@@ -24,11 +24,14 @@ class MultiModalAttention(torch.nn.Module):
         super(MultiModalAttention, self).__init__()
         self.dimensions = dimensions
         
-
         self.feature_map_q = add_one
+        d_q_in, _, d_qk, _ = list(self.dimensions.values())[0]
+
+        f_q = MLP(1,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+        
         self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type,
                                 attention_type=attention_type, init_random=init_random, init_tau=init_tau, weight_type=weight_type,
-                                name=mname, **kw_args_mlp)
+                                name=mname, f_q=f_q,**kw_args_mlp)
                                 for mname, (d_q_in, d_kv_in, d_qk, d_v) in self.dimensions.items() if mname != "reference"})
         
         self.output_layer = None
@@ -66,7 +69,7 @@ class MultiModalAttention(torch.nn.Module):
 
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
-        weight_type="gaussian", attention_type="vanilla",name="default",**kw_args_mlp
+        weight_type="gaussian", attention_type="vanilla",name="default",f_q=None,**kw_args_mlp
     ):
         #activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, dropout_p=0,
         super(UniModalAttention,self).__init__()
@@ -86,7 +89,10 @@ class UniModalAttention(torch.nn.Module):
 
         self.W_K = MLP(d_kv_in, [d_qk]*n_layers_qkv, d_qk, bias=bias,  **kw_args_mlp)
         self.W_V = MLP(d_kv_in, [d_qk]*n_layers_qkv, d_v,  bias=bias,  **kw_args_mlp)
-        self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+        if f_q is None:
+            self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+        else:
+            self.W_Q = f_q
         
         self.attn_matrices = None
         temperature_init = init_tau

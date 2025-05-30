@@ -201,7 +201,7 @@ class lTrainer(L.LightningModule):
         yclass = yclass.long()
         yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
         yhat_softmax = torch.nn.functional.sigmoid(yhat)
-
+        
         thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())

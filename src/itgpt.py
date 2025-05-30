@@ -71,7 +71,7 @@ class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
         super(ITGPT, self).__init__()
         self.hparams = hparams
-        self.model = torch.nn.Sequential(*[ItnetBlock(hparams,decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
+        self.model = torch.nn.Sequential(*[ItnetBlock(hparams, decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
 
     def forward(self, x):
         xhat, z = self.model(x)
