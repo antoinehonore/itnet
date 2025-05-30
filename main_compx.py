@@ -167,7 +167,7 @@ def main(args):
 
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
     #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
-    loaders_kwargs = dict(num_workers=args.j, pin_memory=True, persistent_workers=True)
+    loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights

@@ -4,7 +4,7 @@ from src.mlp import MLP
 from src.mixing_layers import OutputLayer, QLinear, Linear, FullOutputLayer
 from src.positional_encoding import PositionalEncoding
 from fast_transformers.cross_causal_product import cross_causal_dot_product
-
+from src.datastruct import TSdata
 from functools import partial
 import math
 
@@ -25,13 +25,15 @@ class MultiModalAttention(torch.nn.Module):
         self.dimensions = dimensions
         
         self.feature_map_q = add_one
+        self.qk_type=qk_type
         d_q_in, _, d_qk, _ = list(self.dimensions.values())[0]
-
-        f_q = MLP(1,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+        self.d_qk = d_qk
         
+        self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+
         self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type,
                                 attention_type=attention_type, init_random=init_random, init_tau=init_tau, weight_type=weight_type,
-                                name=mname, f_q=f_q,**kw_args_mlp)
+                                name=mname,**kw_args_mlp)
                                 for mname, (d_q_in, d_kv_in, d_qk, d_v) in self.dimensions.items() if mname != "reference"})
         
         self.output_layer = None
@@ -44,12 +46,29 @@ class MultiModalAttention(torch.nn.Module):
             else:
                 self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()))
 
+    def compute_Q(self, data_q):
+        timeline = data_q.timeline
+
+        Q = self.W_Q(data_q.data)
+        
+        if self.qk_type == "time":
+            Q = self.feature_map_q(Q)
+        
+        elif self.qk_type == "data+PE":
+            t1_pe = PositionalEncoding(self.d_qk)(timeline)
+            Q = Q + t1_pe
+        else:
+           raise Exception("Unknown qk_type={}".format(self.qk_type))
+        return TSdata(Q, timeline)
+
     def forward(self, batch, mode="encode"):
         """
             Batch is a dictionnary : {"reference": shape (N, 1, T_1, d_1), "m1": shape (N,1,T_2,d_2), ...}
         """
 
         data_q = batch["reference"]
+        data_q = self.compute_Q(data_q)
+
         if mode == "encode":
             results    = {mname: uni_modal.forward(data_q, batch[mname]) for mname, uni_modal in self.uni_modal_attention.items()}
             norms      = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
@@ -101,7 +120,8 @@ class UniModalAttention(torch.nn.Module):
             self.position_encoding = PositionalEncoding(self.d_qk)
     
     def forward(self, data_q, data_kv):
-        Q, q_timeline = self.compute_Q(data_q)
+        Q, q_timeline = data_q.data, data_q.timeline
+
         K, V, kv_timeline = self.compute_KV(data_kv)
 
         out = self.causal_attn_func(Q, K, V, q_timeline, kv_timeline)
@@ -136,21 +156,6 @@ class UniModalAttention(torch.nn.Module):
         else:
             V = input_values
         return K,V, timeline
-
-    def compute_Q(self,data_q):
-        timeline = data_q.timeline
-
-        Q = self.W_Q(data_q.data)
-        
-        if self.qk_type == "time":
-            Q = self.feature_map_q(Q)
-        
-        elif self.qk_type == "data+PE":
-            t1_pe = PositionalEncoding(self.d_qk)(timeline)
-            Q = Q + t1_pe
-        else:
-           raise Exception("Unknown qk_type={}".format(self.qk_type))
-        return Q, timeline
 
     def causal_scaled_linear_attention(self, Q, K, V, t1, t2,  eps=1e-6):
         y = cross_causal_dot_product(torch.tanh(Q), torch.tanh(K), V, t1[0], t2[0])
