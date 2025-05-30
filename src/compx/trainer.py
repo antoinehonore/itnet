@@ -261,7 +261,7 @@ class lTrainer(L.LightningModule):
         return optim
 
 
-def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=6):
+def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=5):
     """
     Plots a confusion matrix using matplotlib.
     
