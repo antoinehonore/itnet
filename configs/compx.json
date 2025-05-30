@@ -1,0 +1,32 @@
+{
+    "params": {
+        "model":{
+            "d_qk": [8],
+            "qk_type": ["data+PE"],
+            "n_layers_qkv": [1],
+            "bias": [true],
+            "activation": ["relu"],
+            "layernorm": [false],
+            "skiptemperature":[true],
+            "skipconnections":[true],
+            "d_out": [5],
+            "init_random": [true],
+            "weight_type":["vanilla"],
+            "dropout_p":[0.5],
+            "attention_type": ["vanilla"],
+            "data_augmentation_pdrop":[0],
+            "data_augmentation_n":[4],
+            "output_type": ["qlinear"]
+        },
+        "data":
+            {"batch_size":   [1],
+            "impute":       ["none"]
+            },
+        "training":{
+            "n_epochs":[150],
+            "lr":[1e-3],
+            "loss":["BCE"],
+            "grad_step_every":[8]
+            }
+    }
+}
