@@ -1,5 +1,6 @@
 
 import torch
+from src.mlp import MLP
 
 class Linear(torch.nn.Module):
     def __init__(self,d_in):
@@ -31,11 +32,17 @@ class OutputLayer(torch.nn.Module):
         return yhat
 
 class FullOutputLayer(torch.nn.Module):
-    def __init__(self,d_in, d_out, names):
+    def __init__(self,d_in, d_out, names, output_type="fulllinear", n_layers_qkv=None,d_qk=None, kw_args_mlp={}):
         super(FullOutputLayer,self).__init__()
         self.names = sorted(names)
         #assert d_in == d_out, "Different input and output dimensions are NYI"
-        self.linear_functions =  torch.nn.Linear(d_in, d_out, bias=False)# for mname in names})
+        if "linear" in output_type:
+            self.function =  torch.nn.Linear(d_in, d_out, bias=False)# for mname in names})
+        elif "mlp" in output_type:
+            self.function =  MLP(d_in, [d_qk]*n_layers_qkv, d_out, bias=False, **kw_args_mlp)
+            # for mname in names})MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
+        else:
+            raise Exception("Unknown output_type={}".format(output_type))
 
     def forward(self, batch):
         theinput = [batch[mname] for mname in self.names]
@@ -43,7 +50,7 @@ class FullOutputLayer(torch.nn.Module):
         # x is (N,H,T,d)
         x = x.transpose(1,2).flatten(start_dim=-2,end_dim=-1)
         # x is (N,T,Hd)
-        yhat = self.linear_functions(x)
+        yhat = self.function(x)
         return yhat
 
 class QLinear(torch.nn.Module):

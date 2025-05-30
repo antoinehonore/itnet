@@ -28,7 +28,7 @@ class MultiModalAttention(torch.nn.Module):
         self.qk_type=qk_type
         d_q_in, _, d_qk, _ = list(self.dimensions.values())[0]
         self.d_qk = d_qk
-        
+
         self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
 
         self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type,
@@ -44,7 +44,8 @@ class MultiModalAttention(torch.nn.Module):
                 output_d_in = output_d_in[0]
                 self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), output_type=output_type)
             else:
-                self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()))
+                self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()),
+                                    output_type=output_type, n_layers_qkv=n_layers_qkv,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
 
     def compute_Q(self, data_q):
         timeline = data_q.timeline
