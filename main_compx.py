@@ -110,7 +110,7 @@ def get_profiler(profiler):
 
         elif profiler=="advanced":
             profiler = AdvancedProfiler(filename="{}_profiler_results.txt".format(profiler))
-    return profiler#, num_training_steps
+    return profiler  ###, num_training_steps
 
 def main(args):
     cfg_fname = args.i
@@ -135,7 +135,6 @@ def main(args):
         hparams = json.load(fp)["params"]
     
     n_epochs = hparams["training"]["n_epochs"]
-    
     model_params = hparams["model"]
     
     data_dimensions = {}
@@ -161,30 +160,29 @@ def main(args):
     
     batch_size = 1
 
-    model_params["init_tau"] = 1  ###  init_tau(data)
+    model_params["init_tau"] = 1
     a_patid = list(data.keys())[0]
     data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset.data)
     #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
-
+    loaders_kwargs = dict(num_workers=args.j, pin_memory=True, persistent_workers=True)
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
-    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False, num_workers=args.j, pin_memory=True, persistent_workers=True)
+    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs )
 
     val_set =  TheDataset(valdata)
     val_set.class_weights = class_weights
-    val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+    val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
         val_set_internal = Subset(dataset, fold_val_index)
         
-        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
-        val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
-
+        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
+        val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -246,7 +244,6 @@ def main(args):
     outputfname = os.path.join(log_dir, exp_name, "results.pklz")
     write_pklz(outputfname, all_fold_results)
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i",type=str,required=True,help="Input config file")
@@ -257,7 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--save", action="store_true", help="save figures", default=False)
     parser.add_argument("--show", action="store_true", help="Show figures", default=False)
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
-    parser.add_argument('--small', action="store_true", default=False, help="Run on all patients by default")
+    parser.add_argument('--small',   action="store_true", default=False, help="Run on all patients by default")
     parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
 
     args = parser.parse_args()

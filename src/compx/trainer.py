@@ -166,7 +166,7 @@ class lTrainer(L.LightningModule):
         else:
             y = batch["targets_OH"]
         
-        if batch_idx == 0 and (self.logger is not None):
+        if (batch_idx == 0) and (self.logger is not None):
             norms_mean = {"norm/"+k+"/val":norms[k].mean() for k in norms.keys()}
 
             self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
@@ -193,7 +193,7 @@ class lTrainer(L.LightningModule):
 
         self.val_scores["y"].append(y.squeeze(0))
         self.val_scores["yclass"].append(yclass.squeeze(0))
-        self.val_scores["yhat"].append(yhat.detach().squeeze(0))
+        self.val_scores["yhat"].append(yhat.squeeze(0))
     
     def get_scores(self, y, yhat, yclass, suffix=""):
         yhat = yhat.to(torch.float)
@@ -230,7 +230,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True, num_classes=yhat.shape[-1])
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
@@ -248,7 +248,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.val_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=False, num_classes=yhat.shape[1])
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
 
