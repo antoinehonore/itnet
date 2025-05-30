@@ -15,7 +15,7 @@ class Itnet(torch.nn.Module):
         
         kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
 
-        self.MMA = MultiModalAttention(hparams["modalities_dimension"], n_layers=hparams["n_layers"], 
+        self.MMA = MultiModalAttention(hparams["modalities_dimension"], 
                 n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], output_type=hparams["output_type"],
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                 weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
