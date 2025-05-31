@@ -58,8 +58,8 @@ class MultiModalAttention(torch.nn.Module):
         
         elif self.qk_type == "data+PE":
             t1_pe = PositionalEncoding(self.d_qk)(timeline)
-            Q = t1_pe
-        
+            Q = t1_pe.unsqueeze(1)
+
         else:
            raise Exception("Unknown qk_type={}".format(self.qk_type))
         return TSdata(Q, timeline)
