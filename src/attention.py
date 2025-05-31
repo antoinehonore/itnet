@@ -19,11 +19,11 @@ def add_one(x, dim=1):
 
 
 class MultiModalAttention(torch.nn.Module):
-    def __init__(self, dimensions, n_layers_qkv=None, bias=True, output_type=None,
+    def __init__(self, dimensions, bias=True, output_type=None,  n_layers_qkv = 0, n_layers_output=0,
                  qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", attention_type="vanilla", **kw_args_mlp):
         super(MultiModalAttention, self).__init__()
         self.dimensions = dimensions
-        
+        #n_layers_qkv=None, 
         self.feature_map_q = add_one
         self.qk_type=qk_type
         d_q_in, _, d_qk, _ = list(self.dimensions.values())[0]
@@ -45,7 +45,7 @@ class MultiModalAttention(torch.nn.Module):
                 self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), output_type=output_type)
             else:
                 self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()),
-                                    output_type=output_type, n_layers_qkv=n_layers_qkv,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
+                                    output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
 
     def compute_Q(self, data_q):
         timeline = data_q.timeline
@@ -89,7 +89,7 @@ class MultiModalAttention(torch.nn.Module):
 
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
-        weight_type="gaussian", attention_type="vanilla",name="default",f_q=None,**kw_args_mlp
+        weight_type="gaussian", attention_type="vanilla",name="default",**kw_args_mlp
     ):
         #activation="relu", layernorm=False, skipconnections=False, skiptemperature=False, dropout_p=0,
         super(UniModalAttention,self).__init__()
@@ -106,14 +106,9 @@ class UniModalAttention(torch.nn.Module):
             self.causal_attn_func = self.causal_scaled_linear_attention
         else:
             raise Exception("Unknown attention_type={}".format(attention_type))
-
         self.W_K = MLP(d_kv_in, [d_qk]*n_layers_qkv, d_qk, bias=bias,  **kw_args_mlp)
         self.W_V = MLP(d_kv_in, [d_qk]*n_layers_qkv, d_v,  bias=bias,  **kw_args_mlp)
-        if f_q is None:
-            self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
-        else:
-            self.W_Q = f_q
-        
+
         self.attn_matrices = None
         temperature_init = init_tau
         self.history_temperature = torch.nn.Parameter(torch.tensor(math.log(temperature_init), dtype=torch.float32),requires_grad=True) 

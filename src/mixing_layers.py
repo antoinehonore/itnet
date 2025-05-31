@@ -32,14 +32,14 @@ class OutputLayer(torch.nn.Module):
         return yhat
 
 class FullOutputLayer(torch.nn.Module):
-    def __init__(self,d_in, d_out, names, output_type="fulllinear", n_layers_qkv=None,d_qk=None, kw_args_mlp={}):
+    def __init__(self,d_in, d_out, names, output_type="fulllinear", n_layers=None,d_qk=None, kw_args_mlp={}):
         super(FullOutputLayer,self).__init__()
         self.names = sorted(names)
         #assert d_in == d_out, "Different input and output dimensions are NYI"
         if "linear" in output_type:
             self.function =  torch.nn.Linear(d_in, d_out, bias=False)# for mname in names})
         elif "mlp" in output_type:
-            self.function =  MLP(d_in, [d_qk]*n_layers_qkv, d_out, bias=False, **kw_args_mlp)
+            self.function =  MLP(d_in, [d_qk]*n_layers, d_out, bias=False, **kw_args_mlp)
             # for mname in names})MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
         else:
             raise Exception("Unknown output_type={}".format(output_type))
