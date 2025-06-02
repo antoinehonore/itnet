@@ -314,6 +314,6 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     # Annotate each cell with its value
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({cm[i, j]:.2f})", ha='center', va='center', color='black')
+            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({cm_n[i, j]:.2f})", ha='center', va='center', color='black')
     
     return ax
