@@ -11,7 +11,7 @@ class TheDataset(Dataset):
         self.mu = None
         self.sigma = None
         self.device = device
-
+    
         
     def get_class_weights(self):
         y = torch.cat([d["targets_int"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
