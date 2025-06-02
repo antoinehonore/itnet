@@ -72,7 +72,8 @@ class lTrainer(L.LightningModule):
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
-        
+        self.class_names = [">48", "48-24", "24-12", "12-6", "<6"]
+
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
     def configure_model(self):
         if self.model is not None:
@@ -235,7 +236,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True, num_classes=yhat.shape[-1])
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True, num_classes=yhat.shape[-1], class_names=self.class_names)
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
@@ -254,8 +255,7 @@ class lTrainer(L.LightningModule):
             i = 0
             ax = self.val_recon_figure[1]
             ax.cla()
-            class_names = [">48", "48-24", "24-12", "12-6", "<6"]
-            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=class_names)
+            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=self.class_names)
             if self.logger is not None:
                 self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 
