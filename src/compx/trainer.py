@@ -87,7 +87,7 @@ class lTrainer(L.LightningModule):
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.init_val_scores()
 
-    def init_val_scores():
+    def init_val_scores(self):
         self.val_scores =   [{"y": [],   "yhat": [], "yclass":[], "norms": []} for _ in range(2)]
 
     def compute_loss(self, batch):
