@@ -67,10 +67,10 @@ class lTrainer(L.LightningModule):
         self.the_training_step  = 0
         self.model = model
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.init_val_scores()
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
-
+        
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6"]
 
@@ -83,7 +83,12 @@ class lTrainer(L.LightningModule):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        
+        def compute_norm(the_loader):
+            all_variable_names = [[k for k in list(batch["data"].keys()) if (k!="specs" and k!="reference")] for batch in the_subset][0]
+            all_data = {k: torch.cat([batch["data"][k] for batch in the_subset]) for k in all_variable_names}
+            normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
+            return normalization
+
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.init_val_scores()
@@ -137,7 +142,7 @@ class lTrainer(L.LightningModule):
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         yhat = self.model(batch)
-        norms = self.model.fusion_model.estimate_fusion.norms
+        norms = self.model.itnet.MMA.norms
         yclass = None
         y = None
         if "targets_int" in batch.keys():
@@ -245,19 +250,20 @@ class lTrainer(L.LightningModule):
 
     def on_validation_epoch_end(self):
         for dataloader_idx in range(len(self.val_scores)):
-            y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
-            yhat = torch.cat(self.val_scores[dataloader_idx]["yhat"]).squeeze(-1)
-            yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
+            if len(self.val_scores[dataloader_idx]["y"])>0:
+                y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
+                yhat = torch.cat(self.val_scores[dataloader_idx]["yhat"]).squeeze(-1)
+                yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
 
-            scores = self.get_scores(y, yhat, yclass, suffix="/val{}".format(dataloader_idx))
-            self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+                scores = self.get_scores(y, yhat, yclass, suffix="/val{}".format(dataloader_idx))
+                self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
 
-            i = 0
-            ax = self.val_recon_figure[1]
-            ax.cla()
-            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=self.class_names)
-            if self.logger is not None:
-                self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
+                i = 0
+                ax = self.val_recon_figure[1]
+                ax.cla()
+                plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=self.class_names)
+                if self.logger is not None:
+                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 
         self.init_val_scores()
         return scores

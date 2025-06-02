@@ -36,8 +36,6 @@ import torch
 from utils_tbox.utils_tbox import read_pklz, write_pklz
 
 
-
-
 # We want to create labels for the training data based on the time to event data
 # Labels in validation set are denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively. 
 # If we don't have a failure reported, and the time_step left is less 48 we don't know when the failure will happen, so we will label it as -1. 
@@ -217,8 +215,8 @@ def get_data(DPATH):
         readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
 
         # Normalization stats
-        mu = readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
-        sigma = readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
+        mu = 0;#readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
+        sigma = 1#readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
 
         # Validation data
         labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
@@ -247,7 +245,6 @@ def get_data(DPATH):
         specificationsTrain.drop(columns=["dataset"],inplace=True)
         specificationsValidation.drop(columns=["dataset"],inplace=True)
         specificationsTest.drop(columns=["dataset"],inplace=True)
-
 
         train_dict = readouts2dict(readoutsTrain,tteTrain,specificationsTrain,root_dir=root_dir, dataset="training")
         test_dict = readouts2dict(readoutsTest, None, specificationsTest, root_dir=root_dir, dataset="testing")

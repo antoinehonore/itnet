@@ -176,9 +176,10 @@ def main(args):
     val_set =  TheDataset(valdata)
     val_set.class_weights = class_weights
     val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
-
+    
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
+        #normalization = compute_norm(training_set)
         val_set_internal = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
@@ -226,14 +227,15 @@ def main(args):
         
         outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
-        results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
-        results_val_internal =    trainer.validate(ltrainer, dataloaders=val_internal_dataloader)
-        results_val = trainer.validate(ltrainer, dataloaders=val_dataloader)
-        results_test = trainer.test(ltrainer, dataloaders=test_dataloader)
+        results={}
+        results["train"] =  trainer.validate(ltrainer, dataloaders=[train_dataloader])
+        results["val_internal"] =    trainer.validate(ltrainer, dataloaders=[val_internal_dataloader])
+        results["val"] = trainer.validate(ltrainer, dataloaders=[val_dataloader])
+        results["test"] = trainer.test(ltrainer, dataloaders=test_dataloader)
         
-        results = [results_train, results_val_internal, results_val, results_test]
+        #results = [results_train, results_val_internal, results_val, results_test]
         
-        results.append(last_checkpoint)
+        results["last_checkpoint"] = last_checkpoint
         
         write_pklz(outputfname, results)
         all_fold_results.append(results)

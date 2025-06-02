@@ -14,7 +14,7 @@ class Itnet(torch.nn.Module):
         self.data_augmentation_n = hparams["data_augmentation_n"]
         
         kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
-
+        self.batch_norms = torch.nn.ModuleDict({mname:torch.nn.BatchNorm2d(dims[1]) for mname,dims in hparams["modalities_dimension"].items()})
         self.MMA = MultiModalAttention(hparams["modalities_dimension"], 
                 n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], output_type=hparams["output_type"],
                 init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
@@ -25,7 +25,12 @@ class Itnet(torch.nn.Module):
         """
         batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
-        thedata = {m: batch[m] if m!="reference" else batch[m] for m in batch.keys()}
+        thedata = {m: TSdata(
+                        self.batch_norms[m](batch[m].data.transpose(1,3)).transpose(1,3), 
+                        batch[m].timeline)
+                        if m!="reference" else batch[m] 
+                        for m in batch.keys()
+                        }
         yhat = self.MMA( thedata )
         return yhat
 
