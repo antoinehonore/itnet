@@ -34,7 +34,7 @@ class Itnet(torch.nn.Module):
             if X.shape[2] == 1:
                 xout = xout[:,:,:1,:]
         else:
-            xout = batch[m]
+            xout = batch[m].data
         return xout
 
     def forward(self, batch, pool=None,only_last=True):
