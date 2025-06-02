@@ -50,8 +50,6 @@ class MultiModalAttention(torch.nn.Module):
     def compute_Q(self, data_q):
         timeline = data_q.timeline
 
-        #Q = self.W_Q(data_q.data)
-
         if self.qk_type == "time":
             Q = self.W_Q(data_q.data)
             Q = self.feature_map_q(Q)
@@ -86,10 +84,8 @@ class MultiModalAttention(torch.nn.Module):
         yhat = results
         if not (self.output_layer is None):
             yhat = self.output_layer(results)
-        
         return yhat
 
-@torch.compile
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
         weight_type="gaussian", attention_type="vanilla",name="default",**kw_args_mlp

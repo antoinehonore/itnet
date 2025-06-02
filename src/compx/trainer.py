@@ -293,7 +293,7 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     num_classes = len(class_names)
     confmat = ConfusionMatrix(task="multiclass", num_classes=num_classes)
     cm = confmat(y_pred, y_true).cpu().numpy()
-    cm_n = cm.astype('float') / cm.sum(axis=1, keepdims=True)
+    cm_n = (100*cm.astype('float') / cm.sum(axis=1, keepdims=True)).round(2)
 
     # Normalize if required
     if normalize:
@@ -314,6 +314,6 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     # Annotate each cell with its value
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({cm[i, j]:.2f})", ha='center', va='center', color='black')
+            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({int(cm_n[i, j])})", ha='center', va='center', color='black')
     
     return ax
