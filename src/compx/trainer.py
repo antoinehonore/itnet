@@ -300,7 +300,7 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
         cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
     
     # Plot using matplotlib
-    cax = ax.matshow(cm, cmap=cmap)
+    cax = ax.matshow(cm_n, cmap=cmap)
 
     # Set labels
     ax.set_xticks(np.arange(len(class_names)))
