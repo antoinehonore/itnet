@@ -28,7 +28,7 @@ class Itnet(torch.nn.Module):
         thedata = {m: TSdata(
                         self.batch_norms[m](batch[m].data.transpose(1,3)).transpose(1,3), 
                         batch[m].timeline)
-                        if m!="reference" else batch[m] 
+                        if (m!="reference" and m!="specs") else batch[m] 
                         for m in batch.keys()
                         }
         yhat = self.MMA( thedata )
