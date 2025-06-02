@@ -254,7 +254,7 @@ class lTrainer(L.LightningModule):
             i = 0
             ax = self.val_recon_figure[1]
             ax.cla()
-            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=False, num_classes=yhat.shape[1])
+            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1])
             if self.logger is not None:
                 self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 
@@ -292,7 +292,8 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     num_classes = len(class_names)
     confmat = ConfusionMatrix(task="multiclass", num_classes=num_classes)
     cm = confmat(y_pred, y_true).cpu().numpy()
-    
+    cm_n = cm.astype('float') / cm.sum(axis=1, keepdims=True)
+
     # Normalize if required
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
@@ -312,6 +313,6 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     # Annotate each cell with its value
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}", ha='center', va='center', color='black')
+            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({cm[i, j]:.2f})", ha='center', va='center', color='black')
     
     return ax
