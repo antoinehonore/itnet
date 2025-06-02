@@ -196,8 +196,8 @@ def main(args):
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
         limit_train_batches = None
-        limit_test_batches = limit_train_batches
-        limit_val_batches = limit_train_batches
+        limit_test_batches = limit_train_batches if not args.small else 200
+        limit_val_batches = limit_train_batches if not args.small else 200
 
         if not (profiler is None):
             n_epochs = 9
