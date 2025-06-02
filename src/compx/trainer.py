@@ -254,7 +254,8 @@ class lTrainer(L.LightningModule):
             i = 0
             ax = self.val_recon_figure[1]
             ax.cla()
-            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1])
+            class_names = [">48", "48-24", "24-12", "12-6", "<6"]
+            plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=class_names)
             if self.logger is not None:
                 self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 

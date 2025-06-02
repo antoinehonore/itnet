@@ -89,6 +89,7 @@ class MultiModalAttention(torch.nn.Module):
         
         return yhat
 
+@torch.compile
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
         weight_type="gaussian", attention_type="vanilla",name="default",**kw_args_mlp

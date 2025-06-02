@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("-i",type=str,required=True,help="Input config file")
     parser.add_argument("-o",type=str,required=True,help="output results file")
     parser.add_argument("-v", help="Verbosity level", default=0, type=int)
-    parser.add_argument("-j", help="Number of tasks", default=1, type=int)
+    parser.add_argument("-j", help="Number of tasks", default=0, type=int)
     parser.add_argument("--plot", action="store_true", help="Plot figures", default=False)
     parser.add_argument("--save", action="store_true", help="save figures", default=False)
     parser.add_argument("--show", action="store_true", help="Show figures", default=False)
