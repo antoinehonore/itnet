@@ -72,7 +72,7 @@ class lTrainer(L.LightningModule):
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
-        # 
+        
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
     def configure_model(self):
         if self.model is not None:
@@ -155,6 +155,7 @@ class lTrainer(L.LightningModule):
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
 
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
+        return scores
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
