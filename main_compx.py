@@ -120,7 +120,7 @@ def main(args):
                             os.path.basename(cfg_fname).replace(".json",""))
     log_dir = "lightning_logs"
     exp_name = exp_name_
-    torch.set_num_threads(4)
+    #torch.set_num_threads(4)
     seed = 12345
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -184,6 +184,8 @@ def main(args):
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
         val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
+        
+        exp_name=exp_name+"/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
