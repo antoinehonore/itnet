@@ -35,7 +35,18 @@ import torch
 
 from utils_tbox.utils_tbox import read_pklz, write_pklz
 
+num_variables = [["171_0"], ["666_0"], ["427_0"], 
+                    ["837_0"], ["309_0"], ["835_0"], 
+                    ["370_0"], ["100_0"]
+                ]
 
+cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
+                    for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
+                                            [10, 10, 11, 10, 20, 36]
+                                            )
+                }
+
+                
 # We want to create labels for the training data based on the time to event data
 # Labels in validation set are denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively. 
 # If we don't have a failure reported, and the time_step left is less 48 we don't know when the failure will happen, so we will label it as -1. 
@@ -139,16 +150,7 @@ def append_dummy_timeline(dd, append_diff=True):
 def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="training"):
     metadata =      ['vehicle_id', 'time_step']
     targets =       ["in_study_repair", "time_to_potential_event", "class_label"]
-    num_variables = [["171_0"], ["666_0"], ["427_0"], 
-                        ["837_0"], ["309_0"], ["835_0"], 
-                        ["370_0"], ["100_0"]
-                    ]
 
-    cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)] 
-                        for varname, n_bins in zip(["167", "272", "291", "158", "459", "397"], 
-                                                [10, 10, 11, 10, 20, 36]
-                                                )
-                    }
     specs.set_index("vehicle_id",inplace=True)
     if dataset=="validation":
         assert (tte is None)
