@@ -46,13 +46,11 @@ cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)]
                                             )
                 }
 
-
 # We want to create labels for the training data based on the time to event data
 # Labels in validation set are denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively. 
 # If we don't have a failure reported, and the time_step left is less 48 we don't know when the failure will happen, so we will label it as -1. 
 
 def get_class_label_int(row):
-    
     #classes denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively
     if row['time_to_potential_event'] > 48:
         return 0 #No failure within 48 time steps
@@ -175,11 +173,6 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
         v_id: g.drop(columns="vehicle_id").set_index("time_step")
         for v_id, g in df.groupby("vehicle_id")
     }
-    #the_dict = {v_id:
-    #                df[df["vehicle_id"]==v_id].drop(columns=["vehicle_id"]).set_index("time_step")
-    #                for v_id in all_vehicles
-    #                }
-    
     the_dict2 = {v_id:
                     {"data":{
                         **{num_varname[0]: dataframe2X(dd[num_varname])  for num_varname in num_variables},
@@ -219,7 +212,7 @@ def get_data(DPATH):
         readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
         readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
         readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
-        
+
         # Normalization stats
         mu = 0;#readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
         sigma = 1#readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
@@ -227,7 +220,6 @@ def get_data(DPATH):
         # Validation data
         labelsValidation = pd.read_csv(os.path.join(root_dir, 'validation_labels.csv'))
         specificationsValidation = pd.read_csv(os.path.join(root_dir, 'validation_specifications.csv'))
-        
         specificationsTest = pd.read_csv(os.path.join(root_dir, 'test_specifications.csv'))
 
         # Normalize
@@ -239,7 +231,7 @@ def get_data(DPATH):
         specificationsValidation["dataset"] = "validation"
         specificationsTest["dataset"] = "test"
         
-        specs = pd.concat([specificationsTrain,specificationsValidation,specificationsTest])
+        specs = pd.concat([specificationsTrain, specificationsValidation, specificationsTest])
         specs_varnames = specs.set_index(["vehicle_id","dataset"]).columns
         all_specs_varnames = ["_".join([varname,s]) for varname in specs_varnames for s in specs[varname].unique().tolist()]
         all_specs_varnames = sorted(all_specs_varnames)

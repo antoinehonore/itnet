@@ -74,10 +74,13 @@ def patient_timesplit(patid, d, n_splits=5):
 
     return out_tr, out_val
 
-def get_tr_val_index_lists(data):
+def get_tr_val_index_lists(data, k=5):
     patids = np.array(list(data.keys()))
-    #train_idx, val_idx = next()
-    tr_val_index_lists = KFold(5).split(patids)
+
+    if k>0:
+        tr_val_index_lists = KFold(k).split(patids)
+    else:
+        tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
     #all_training_data = {patids[idx]: data[patids[idx]] for idx in train_idx}
     #all_validation_data = {patids[idx]: data[patids[idx]] for idx in val_idx}
@@ -165,8 +168,8 @@ def main(args):
     data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
-    tr_val_index_lists = get_tr_val_index_lists(dataset.data)
-    #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
+    tr_val_index_lists = get_tr_val_index_lists(dataset.data, k=hparams["training"]["kfold"])
+    
     loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
     all_fold_results = []
     test_set =  TheDataset(testdata)
