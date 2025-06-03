@@ -122,15 +122,19 @@ def dataframe2X(dd, append_diff=True):
     if X.shape[0] > 0:
         l = [X]
         if append_diff:
-            l+=[np.diff(t,prepend=t[0]).reshape(-1,1)]
+            l += [np.diff(t,prepend=t[0]).reshape(-1,1)]
         l += [t.reshape(-1,1)]
         X = np.concat(l, axis=1)
     else:
         X = np.zeros((1, X.shape[1]+ (1+append_diff)))
     return torch.from_numpy(X).to(torch.float)
 
-def append_dummy_timeline(dd):
-    return torch.from_numpy(np.concat([dd.values, np.array([[0]]), np.array([[0]])],axis=1)).to(torch.float)
+def append_dummy_timeline(dd, append_diff=True):
+    if append_diff:
+        out = torch.from_numpy(np.concat([dd.values, np.array([[0]]), np.array([[0]])],axis=1)).to(torch.float)
+    else:
+        out = torch.from_numpy(np.concat([dd.values,np.array([[0]])], axis=1)).to(torch.float)
+    return out
     
 def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="training"):
     metadata =      ['vehicle_id', 'time_step']
