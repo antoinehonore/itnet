@@ -18,7 +18,7 @@ def apply_domain_normalization(m, t, eps=1e-5):
 
 def apply_domain1_normalization(m, t, eps=1e-5):
     # Remove the time things
-    t[...,-2:] *= 0
+    t[...,-2:] = t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
     if (m in cat_variables.keys()):
         # Normalize histograms
         t[...,:-2] = t[...,:-2] / (t[...,:-2].sum(-1).unsqueeze(-1)+eps)
