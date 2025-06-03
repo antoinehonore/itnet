@@ -121,7 +121,7 @@ def main(args):
     log_dir = "lightning_logs"
     exp_name = exp_name_
     #torch.set_num_threads(4)
-    seed = 12345
+    seed = args.seed 
     torch.manual_seed(seed)
     np.random.seed(seed)
     
@@ -260,6 +260,8 @@ if __name__ == "__main__":
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
     parser.add_argument('--small',   action="store_true", default=False, help="Run on all patients by default")
     parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
+    parser.add_argument('--seed', type=int, default=12345, help="Random seed, default=12345")
+
 
     args = parser.parse_args()
     main(args)
