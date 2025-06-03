@@ -16,6 +16,17 @@ def apply_domain_normalization(m, t, eps=1e-5):
         t = apply_log(t)
     return t
 
+def apply_domain1_normalization(m, t, eps=1e-5):
+    # Remove the time things
+    t[...,-2:] = 0
+    if (m in cat_variables.keys()):
+        # Normalize histograms
+        t[...,:-2] = t[...,:-2] / (t[...,:-2].sum(-1).unsqueeze(-1)+eps)
+    else:
+        t = apply_log(t)
+    return t
+
+
 # A wrapper around MultiModalAttention
 class Itnet(torch.nn.Module):
     def __init__(self, hparams):
@@ -33,6 +44,8 @@ class Itnet(torch.nn.Module):
             self.norm_funcs = apply_log#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
         elif self.normalization == "domain":
             self.norm_funcs = apply_domain_normalization#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
+        elif self.normalization == "domain1":
+            self.norm_funcs = apply_domain1_normalization#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
 
         else:
             raise Exception("Unknown normalization={}".format(self.normalization))
@@ -62,7 +75,7 @@ class Itnet(torch.nn.Module):
             return self.apply_batchnorm(m, batch)
         elif self.normalization == "log":
             return self.norm_funcs(batch[m].data)
-        elif self.normalization == "domain":
+        elif "domain" in self.normalization:
              return self.norm_funcs(m, batch[m].data)
         else:
             raise Exception("Unknown normalization={}".format(self.normalization))

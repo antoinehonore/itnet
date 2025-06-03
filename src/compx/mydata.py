@@ -46,7 +46,7 @@ cat_variables = {varname: ["_".join([varname,str(i)]) for i in range(n_bins)]
                                             )
                 }
 
-                
+
 # We want to create labels for the training data based on the time to event data
 # Labels in validation set are denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively. 
 # If we don't have a failure reported, and the time_step left is less 48 we don't know when the failure will happen, so we will label it as -1. 
@@ -219,7 +219,7 @@ def get_data(DPATH):
         readoutsTrain = pd.read_csv(os.path.join(root_dir, 'train_operational_readouts.csv'))
         readoutsValidation = pd.read_csv(os.path.join(root_dir, 'validation_operational_readouts.csv'))
         readoutsTest = pd.read_csv(os.path.join(root_dir, 'test_operational_readouts.csv'))
-
+        
         # Normalization stats
         mu = 0;#readoutsTrain.set_index(['vehicle_id', 'time_step']).mean(0)
         sigma = 1#readoutsTrain.set_index(['vehicle_id', 'time_step']).std(0)
