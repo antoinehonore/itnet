@@ -184,22 +184,7 @@ class lTrainer(L.LightningModule):
 
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
             fig, axes = self.val_senspec_figure
-            ax = axes[0]
-            ax.cla()
-            plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
-            labels = list(norms.keys())
-            for j in range(plot_data.shape[1]):
-                ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
-            ax.legend(bbox_to_anchor=(1,1))
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Modality contribution (%)")
-            ax = axes[1]
-            ax.cla()
-            ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
-            ax.plot(timeline, yclass[batch_idx].cpu().float().numpy(),label="True ",marker="o")
-            ax.legend()
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Class index")
+            axes = plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx)
             self.logger.experiment.add_figure("mod_contributions/val{}".format(dataloader_idx), fig, self.the_training_step)
 
         self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
@@ -268,10 +253,31 @@ class lTrainer(L.LightningModule):
         self.init_val_scores()
         return scores
 
+
+
     def configure_optimizers(self):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
                 lr=self.hparams["training"]['lr'])
         return optim
+
+def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
+    ax = axes[0]
+    ax.cla()
+    plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
+    labels = list(norms.keys())
+    for j in range(plot_data.shape[1]):
+        ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
+    ax.legend(bbox_to_anchor=(1,1))
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Modality contribution (%)")
+    ax = axes[1]
+    ax.cla()
+    ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
+    ax.plot(timeline, yclass[batch_idx].cpu().float().numpy(),label="True ",marker="o")
+    ax.legend()
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Class index")
+    return axes
 
 
 def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=5):
