@@ -133,9 +133,9 @@ class lTrainer(L.LightningModule):
             opt.zero_grad()
         
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-        if batch_idx == 0:
-            norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
-            self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
+        #if batch_idx == 0:
+            #norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
+            #self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
 
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
@@ -265,8 +265,12 @@ def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
     ax.cla()
     plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
     labels = list(norms.keys())
-    for j in range(plot_data.shape[1]):
-        ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
+    if len(timeline)>1:
+        for j in range(plot_data.shape[1]):
+            ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
+    else:
+        idx = np.argsort(plot_data[0])[::-1]
+        ax.bar(np.array(labels)[idx], plot_data[0][idx])
     ax.legend(bbox_to_anchor=(1,1))
     ax.set_xlabel("Time")
     ax.set_ylabel("Modality contribution (%)")

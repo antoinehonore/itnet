@@ -201,9 +201,9 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None
-        limit_test_batches = limit_train_batches if not args.small else 200
-        limit_val_batches = limit_train_batches if not args.small else 200
+        limit_train_batches = None if not args.small else 50
+        limit_test_batches = limit_train_batches if not args.small else 50
+        limit_val_batches = limit_train_batches if not args.small else 50
 
         if not (profiler is None):
             n_epochs = 9
