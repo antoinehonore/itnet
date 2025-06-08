@@ -3,12 +3,12 @@
         "model":{
             "d_qk": [8],
             "qk_type": ["data+PE"],
-            "n_layers_qkv": [1],
+            "n_layers_qkv": [0],
             "bias": [true],
             "activation": ["relu"],
             "layernorm": [false],
-            "skiptemperature":[true],
-            "skipconnections":[true],
+            "skiptemperature":[false],
+            "skipconnections":[false],
             "d_out": [5],
             "init_random": [true],
             "weight_type":["vanilla"],
@@ -16,17 +16,20 @@
             "attention_type": ["vanilla"],
             "data_augmentation_pdrop":[0],
             "data_augmentation_n":[4],
-            "output_type": ["qlinear"]
+            "output_type": ["fullmlp"],
+            "n_layers_output":[2],
+            "normalization":["domain1"]
         },
         "data":
             {"batch_size":   [1],
             "impute":       ["none"]
             },
         "training":{
-            "n_epochs":[150],
-            "lr":[1e-3],
+            "n_epochs":[10],
+            "lr":[5e-4],
             "loss":["BCE"],
-            "grad_step_every":[8]
+            "grad_step_every":[256],
+            "kfold":[0]
             }
     }
 }

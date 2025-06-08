@@ -16,10 +16,13 @@
             "attention_type": ["vanilla"],
             "data_augmentation_pdrop":[0],
             "data_augmentation_n":[4],
-            "output_type": ["linear"],
+            "output_type": ["fullmlp"],
+            "n_layers_output":[2],
+            "normalization":["domain1"],
             "itnet_n_layers": [4],
+            "itnet_anchor_dim": [10],
+            "itnet_embedding_dim_p": [0.2],
             "itnet_skipconnections": [true]
-
         },
         "data":
             {
@@ -30,7 +33,8 @@
             "n_epochs":[150],
             "lr":[1e-3],
             "loss":["MSE"],
-            "grad_step_every":[8]
+            "grad_step_every":[8],
+            "kfold":[0]
             }
     }
 }
