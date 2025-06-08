@@ -197,7 +197,7 @@ def main(args):
                             enable_checkpointing=False, profiler=profiler,
                             **extra_dtraining_kwargs, **limits)
         
-        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader,val_dataloader])
     
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
