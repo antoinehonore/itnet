@@ -3,7 +3,7 @@
         "model":{
             "d_qk": [8],
             "qk_type": ["data+PE"],
-            "n_layers_qkv": [1],
+            "n_layers_qkv": [0],
             "bias": [true],
             "activation": ["relu"],
             "layernorm": [false],
