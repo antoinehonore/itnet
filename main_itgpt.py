@@ -160,6 +160,7 @@ def main(args):
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
+        exp_name=exp_name_+"/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
