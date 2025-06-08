@@ -23,22 +23,22 @@ class MultiModalAttention(torch.nn.Module):
                  qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", attention_type="vanilla", **kw_args_mlp):
         super(MultiModalAttention, self).__init__()
         self.dimensions = dimensions
-        #n_layers_qkv=None, 
         self.feature_map_q = add_one
-        self.qk_type=qk_type
-        d_q_in, _, d_qk, _ = list(self.dimensions.values())[0]
-        self.d_qk = d_qk
+        self.qk_type = qk_type
+        D1 = list(self.dimensions.values())[0]
+        d_q_in, d_qk = D1["in_q"], D1["out_qk"]
 
+        self.d_qk = d_qk
         self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=False, **kw_args_mlp)
 
-        self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type,
+        self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, D["in_kv"], D["out_qk"], D["out_v"], n_layers_qkv, qk_type,
                                 attention_type=attention_type, init_random=init_random, init_tau=init_tau, weight_type=weight_type,
                                 name=mname,**kw_args_mlp)
-                                for mname, (d_q_in, d_kv_in, d_qk, d_v) in self.dimensions.items() if mname != "reference"})
-        
+                                for mname, D in self.dimensions.items() if mname != "reference"})
+        #(d_q_in, d_kv_in, d_qk, d_v)
         self.output_layer = None
         if not (output_type is None):
-            output_d_in = [l[-1] for l in self.dimensions.values()]
+            output_d_in = [D["out_v"] for D in self.dimensions.values()]
 
             if not ("full" in output_type):
                 output_d_in = output_d_in[0]

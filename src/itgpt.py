@@ -30,7 +30,8 @@ class ItnetBlock(torch.nn.Module):
         if self.decoder:
             # 
             # d_in_q, d_in_kv, d_qk, d_out
-            decoder_modalities = {mname: (d_in_q, d_out, d_qk, d_in_kv ) for mname, (d_in_q, d_in_kv, d_qk, d_out) in hparams["modalities_dimension"].items()}
+            # (d_in_q, d_in_kv, d_qk, d_out)
+            decoder_modalities = {mname: dict(in_q=D["in_q"], in_kv=D["out_qk"], out_qk=D["out_qk"], out_v=D["in_kv"]) for mname, D in hparams["modalities_dimension"].items()}
 
             self.decodeMMA = MultiModalAttention(decoder_modalities,
                     n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
@@ -85,9 +86,9 @@ class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
         super(ITGPT, self).__init__()
         self.hparams = hparams
-        
-        input_dimensions = {mname: (d_in_kv, int(round(d_in_kv*(1+hparams["itnet_embedding_dim_p"])))) 
-                                    for mname,(d_in_q, d_in_kv, d_qk, d_out) in hparams["modalities_dimension"].items()
+        # (d_in_q, d_in_kv, d_qk, d_out)
+        input_dimensions = {mname: (D["in_kv"], int(round(D["in_kv"]*(1+hparams["itnet_embedding_dim_p"])))) 
+                                    for mname,D in hparams["modalities_dimension"].items()
                             }
                              
         output_dimensions = {mname: D[::-1] 
@@ -97,11 +98,11 @@ class ITGPT(torch.nn.Module):
         self.embedding = Embedding(input_dimensions)
         self.output_embedding = Embedding(output_dimensions)
         self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"],hparams["d_out"])
+        # (d_in_q, d_in_kv, d_qk, d_out)
+        blocks_dimensions = {mname: dict(in_q=D["in_q"], in_kv=input_dimensions[mname][1], out_qk=D["out_qk"], out_v=hparams["itnet_anchor_dim"]) 
+                        for mname, D in hparams["modalities_dimension"].items()}
 
-        dimensions = {mname: (d_in_q, input_dimensions[mname][1], d_qk, hparams["itnet_anchor_dim"]) 
-                        for mname, (d_in_q, d_in_kv, d_qk, d_out) in hparams["modalities_dimension"].items()}
-
-        hparams["modalities_dimension"] = dimensions
+        hparams["modalities_dimension"] = blocks_dimensions
         
         self.model = torch.nn.Sequential(*[ItnetBlock(hparams, decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
 

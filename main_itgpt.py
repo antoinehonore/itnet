@@ -44,7 +44,7 @@ def get_modality_dimensions(data_dimensions, model_params):
 
     elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
         # d_in_q, d_in_kv, d_qk, d_out
-        modalities_dimension = {mname: (1, d_in, model_params["d_qk"], model_params["d_out"]) for mname,d_in in data_dimensions.items()}
+        modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items()}
     return modalities_dimension
 
 def patient_timesplit(patid, d, n_splits=5):
@@ -71,7 +71,7 @@ def get_tr_val_index_lists(data, k=5):
         tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
     return tr_val_index_lists
-    
+
 def init_tau(data):
     """A value for $\\tau$ in the attention kernels"""
     example_patient_id = list(data.keys())[0]
