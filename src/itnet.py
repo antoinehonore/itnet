@@ -5,26 +5,19 @@ from src.attention import MultiModalAttention
 from src.datastruct import TSdata
 from src.compx.mydata import num_variables, cat_variables
 
-def apply_log(t, eps=1):
-    return (t + eps).log()
-
-def apply_domain_normalization(m, t, eps=1e-5):
-    if (m in cat_variables.keys()):
-        t[...,:-2] = t[...,:-2] / (t[...,:-2].sum(-1).unsqueeze(-1)+eps)
-        t = apply_log(t)
-    else:
-        t = apply_log(t)
-    return t
-
-def apply_domain1_normalization(m, t, eps=1e-5):
-    # Remove the time things
-    t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
-    if (m in cat_variables.keys()):
-        # Normalize histograms
-        t[...,:-2] = t[...,:-2] / (t[...,:-2].sum(-1).unsqueeze(-1)+eps)
-    #else:
-    t = apply_log(t)
-    return t
+class Predictor(torch.nn.Module):
+    def __init__(self, hparams):
+        super(Predictor, self).__init__()
+        self.hparams = hparams
+        self.itnet = Itnet(hparams)
+    
+    def forward(self, batch):
+        thefeatures = {}
+        thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
+        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if m!="reference"} }
+        
+        yhat = self.itnet(thefeatures)
+        return yhat
 
 
 # A wrapper around MultiModalAttention

@@ -3,7 +3,7 @@ import torch
 import numpy as np 
 
 from src.itnet import TSdata
-from src.itgpt import ITGPT
+from src.itgpt import ITGPT, Predictor
 
 import torch.nn.functional as F
 import torch.nn as nn
@@ -32,20 +32,6 @@ import lightning as L
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 from sklearn.preprocessing import LabelEncoder
-
-class Predictor(torch.nn.Module):
-    def __init__(self, hparams):
-        super(Predictor, self).__init__()
-        self.hparams = hparams
-        self.itgpt = ITGPT(hparams)
-    
-    def forward(self, batch):
-        thefeatures = {}
-        thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
-        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if m!="reference"} }
-        
-        yhat, _ = self.itgpt(thefeatures)
-        return yhat
 
 def get_modality_dimensions(data_dimensions, model_params):
     modalities_dimension = {}
@@ -76,28 +62,16 @@ def patient_timesplit(patid, d, n_splits=5):
 
     return out_tr, out_val
 
-def get_tr_val_index_lists(data):
+def get_tr_val_index_lists(data, k=5):
     patids = np.array(list(data.keys()))
-    #train_idx, val_idx = next()
-    tr_val_index_lists = KFold(5).split(patids)
 
-    #all_training_data = {patids[idx]: data[patids[idx]] for idx in train_idx}
-    #all_validation_data = {patids[idx]: data[patids[idx]] for idx in val_idx}
-    #all_validation_data = {}
-    #for patid, d in data.items():
-    #    if d["data"]["reference"].shape[0]>5:
-    #        patient_training, patient_validation = patient_timesplit(patid, d)
-    #        all_training_data = {**all_training_data,**patient_training}
-    #        all_validation_data = {**all_validation_data,**patient_validation}
+    if k>0:
+        tr_val_index_lists = KFold(k).split(patids)
+    else:
+        tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
-    #training_dataset = TheDataset(all_training_data)
-    #validation_dataset = TheDataset(all_validation_data)
-
-    #tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
-    #val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    return tr_val_index_lists
     
-    return tr_val_index_lists#training_dataset, validation_dataset#, zip(tr_fold_indices, val_fold_indices)
-
 def init_tau(data):
     """A value for $\\tau$ in the attention kernels"""
     example_patient_id = list(data.keys())[0]
@@ -168,7 +142,7 @@ def main(args):
     data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
-    tr_val_index_lists = get_tr_val_index_lists(dataset.data)
+    tr_val_index_lists = get_tr_val_index_lists(dataset.data, k=hparams["training"]["kfold"])
     #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
     all_fold_results = []
@@ -186,7 +160,6 @@ def main(args):
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
         val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
-
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -230,14 +203,11 @@ def main(args):
         
         outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
-        results_train =  trainer.validate(ltrainer, dataloaders=train_dataloader)
-        results_val_internal =    trainer.validate(ltrainer, dataloaders=val_internal_dataloader)
-        results_val = trainer.validate(ltrainer, dataloaders=val_dataloader)
-        results_test = trainer.test(ltrainer, dataloaders=test_dataloader)
-        
-        results = [results_train, results_val_internal, results_val, results_test]
-        
-        results.append(last_checkpoint)
+        results={}
+        results["train"] =  trainer.validate(ltrainer, dataloaders=[train_dataloader])
+        results["val_internal"] =    trainer.validate(ltrainer, dataloaders=[val_internal_dataloader])
+        results["val"] = trainer.validate(ltrainer, dataloaders=[val_dataloader])
+        results["test"] = trainer.test(ltrainer, dataloaders=test_dataloader)
         
         write_pklz(outputfname, results)
         all_fold_results.append(results)

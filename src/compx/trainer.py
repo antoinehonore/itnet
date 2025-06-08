@@ -35,7 +35,6 @@ color_marker_style = [
     {"color": "#F28500", "marker": "D", "linestyle": "--"},  # vivid orange
 ]
 
-
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
@@ -75,6 +74,7 @@ class lTrainer(L.LightningModule):
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6"]
 
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
+    
     def configure_model(self):
         if self.model is not None:
             return
@@ -158,11 +158,14 @@ class lTrainer(L.LightningModule):
     
     def on_test_epoch_end(self):
         scores = {}
+        yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
+
         if len(self.test_scores["yclass"]) >0:
-            yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
+        else:
+            scores["yhat"] = yhat
 
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
         return scores

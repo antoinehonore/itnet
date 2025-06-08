@@ -35,7 +35,6 @@ color_marker_style = [
     {"color": "#F28500", "marker": "D", "linestyle": "--"},  # vivid orange
 ]
 
-
 class lTrainer(L.LightningModule):
     def __init__(self, hparams=None, model=None):
         super(lTrainer, self).__init__()
@@ -67,36 +66,44 @@ class lTrainer(L.LightningModule):
         self.the_training_step  = 0
         self.model = model
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.init_val_scores()
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
-
+        
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
-    
-    def myloss(self,yhat,y_n):
-        loss = [self.loss_fun(yhat[m], y_n[m]) for m in yhat.keys()]
-        return sum(loss)/len(loss)
+        self.class_names = [">48", "48-24", "24-12", "12-6", "<6"]
 
+        self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
+    
     def configure_model(self):
         if self.model is not None:
-            return 
+            return
 
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        def compute_norm(the_loader):
+            all_variable_names = [[k for k in list(batch["data"].keys()) if (k!="specs" and k!="reference")] for batch in the_subset][0]
+            all_data = {k: torch.cat([batch["data"][k] for batch in the_subset]) for k in all_variable_names}
+            normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
+            return normalization
+
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.init_val_scores()
+
+    def init_val_scores(self):
+        self.val_scores =   [{"y": [],   "yhat": [], "yclass":[], "norms": []} for _ in range(2)]
 
     def compute_loss(self, batch):
         y = batch["targets_OH"]
         yclass = batch["targets_int"]
-        yhat = self.model(batch)
+        _, yhat = self.model(batch)
 
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
-        self.train_scores["yhat"].append(yhat)
+        self.train_scores["yhat"].append(yhat.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
 
         if self.loss_fun_name == "BCE":
@@ -106,10 +113,10 @@ class lTrainer(L.LightningModule):
             yhat = yhat[0]
             y_n = yclass.long()[0]
         else:
-            
-            y_n = batch["data"]#y.squeeze(0)
+            yhat = yhat[0]
+            y_n = y.squeeze(0)
         
-        loss = self.myloss(yhat, y_n)
+        loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
         return loss
     
     def training_step(self, batch, batch_idx, dataloader_idx=0):
@@ -119,23 +126,23 @@ class lTrainer(L.LightningModule):
         log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-        norms = self.model.itgpt.encodeMMA.norms
+        #norms = self.model.itgpt.encodingMMA.norms
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
         
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-        if batch_idx == 0:
-            norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
-            self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
+        #if batch_idx == 0:
+            #norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
+            #self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
 
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         yhat = self.model(batch)
-        norms = self.model.itgpt.encodeMMA.norms
+        norms = self.model.itnet.MMA.norms
         yclass = None
         y = None
         if "targets_int" in batch.keys():
@@ -151,61 +158,50 @@ class lTrainer(L.LightningModule):
     
     def on_test_epoch_end(self):
         scores = {}
+        yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
+
         if len(self.test_scores["yclass"]) >0:
-            yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
             scores = self.get_scores(y, yhat, yclass, suffix="/test")
+        else:
+            scores["yhat"] = yhat
+
         self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
+        return scores
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        yhat = self.model(batch)
-        norms = self.model.itgpt.encodeMMA.norms
-
+        _,yhat = self.model(batch)
+        #norms = self.model.itnet.MMA.norms
+        
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
         else:
             y = batch["targets_OH"]
         
-        if batch_idx == 0 and (self.logger is not None):
-            norms_mean = {"norm/"+k+"/val": norms[k].mean() for k in norms.keys()}
+        if (batch_idx == 0) and (self.logger is not None):
+            #norms_mean = {"norm/"+k+"/val{}".format(dataloader_idx):norms[k].mean() for k in norms.keys()}
 
-            self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
+            #self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
 
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
-            
-            fig, axes = self.val_senspec_figure
-            ax = axes[0]
-            ax.cla()
-            plot_data = torch.cat(list(norms.values()), dim=-1)[batch_idx, 0].cpu().numpy()
-            labels = list(norms.keys())
-            for j in range(plot_data.shape[1]):
-                ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
-            ax.legend(bbox_to_anchor=(1,1))
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Modality contribution (%)")
-            ax = axes[1]
-            ax.cla()
-            ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().numpy(),label="Predicted ",marker="x")
-            ax.plot(timeline, yclass[batch_idx].cpu().numpy(),label="True ",marker="o")
-            ax.legend()
-            ax.set_xlabel("Time")
-            ax.set_ylabel("Class index")
-            self.logger.experiment.add_figure("mod_contributions/val", fig, self.the_training_step)
+            #fig, axes = self.val_senspec_figure
+            #axes = plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx)
+            #self.logger.experiment.add_figure("mod_contributions/val{}".format(dataloader_idx), fig, self.the_training_step)
 
-        self.val_scores["y"].append(y.squeeze(0))
-        self.val_scores["yclass"].append(yclass.squeeze(0))
-        self.val_scores["yhat"].append(yhat.detach().squeeze(0))
+        self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
+        self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
+        self.val_scores[dataloader_idx]["yhat"].append(yhat.squeeze(0))
     
     def get_scores(self, y, yhat, yclass, suffix=""):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
         yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
-        yhat_softmax = torch.nn.functional.softmax(yhat,dim=-1)
-
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_sigmoid, y)}
+        yhat_softmax = torch.nn.functional.sigmoid(yhat)
+        
+        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
         thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
         thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")
@@ -214,10 +210,8 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] = multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
         thescores["AUROC"+suffix] = multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
         thescores["AUPRC"+suffix] = multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
-
-        self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
         cm = self.compute_confmat(yhat, yclass)
-        thescores["cost" + suffix] = (self.cost_matrix * cm).sum() / cm.sum()
+        thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
@@ -235,7 +229,7 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
+        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True, num_classes=yhat.shape[-1], class_names=self.class_names)
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
@@ -243,30 +237,57 @@ class lTrainer(L.LightningModule):
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
     def on_validation_epoch_end(self):
-        y = torch.cat(self.val_scores["y"]).squeeze(-1)
-        yhat = torch.cat(self.val_scores["yhat"]).squeeze(-1)
-        yclass = torch.cat(self.val_scores["yclass"]).squeeze(-1)
+        for dataloader_idx in range(len(self.val_scores)):
+            if len(self.val_scores[dataloader_idx]["y"])>0:
+                y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
+                yhat = torch.cat(self.val_scores[dataloader_idx]["yhat"]).squeeze(-1)
+                yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
 
-        scores = self.get_scores(y, yhat, yclass, suffix="/val")
-        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+                scores = self.get_scores(y, yhat, yclass, suffix="/val{}".format(dataloader_idx))
+                self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
 
-        i = 0
-        ax = self.val_recon_figure[1]
-        ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True)
-        if self.logger is not None:
-            self.logger.experiment.add_figure("recon_figure/val", self.val_recon_figure[0], self.the_training_step)
+                i = 0
+                ax = self.val_recon_figure[1]
+                ax.cla()
+                plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=self.class_names)
+                if self.logger is not None:
+                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 
-        self.val_scores =   {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.init_val_scores()
         return scores
+
+
 
     def configure_optimizers(self):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
                 lr=self.hparams["training"]['lr'])
         return optim
 
+def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
+    ax = axes[0]
+    ax.cla()
+    plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
+    labels = list(norms.keys())
+    if len(timeline)>1:
+        for j in range(plot_data.shape[1]):
+            ax.plot(timeline, plot_data[:,j], label=labels[j],**color_marker_style[j])
+    else:
+        idx = np.argsort(plot_data[0])[::-1]
+        ax.bar(np.array(labels)[idx], plot_data[0][idx])
+    ax.legend(bbox_to_anchor=(1,1))
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Modality contribution (%)")
+    ax = axes[1]
+    ax.cla()
+    ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
+    ax.plot(timeline, yclass[batch_idx].cpu().float().numpy(),label="True ",marker="o")
+    ax.legend()
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Class index")
+    return axes
 
-def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=6):
+
+def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=5):
     """
     Plots a confusion matrix using matplotlib.
     
@@ -277,7 +298,6 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
         normalize (bool, optional): Whether to normalize the confusion matrix.
         cmap (str, optional): Color map for the heatmap.
     """
-
     # Convert labels to tensor if they are not
     if not isinstance(y_true, torch.Tensor):
         y_true = torch.tensor(y_true)
@@ -292,13 +312,14 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     num_classes = len(class_names)
     confmat = ConfusionMatrix(task="multiclass", num_classes=num_classes)
     cm = confmat(y_pred, y_true).cpu().numpy()
-    
+    cm_n = (cm.astype('float') / cm.sum(axis=1, keepdims=True))
+
     # Normalize if required
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1, keepdims=True)
     
     # Plot using matplotlib
-    cax = ax.matshow(cm, cmap=cmap)
+    cax = ax.matshow(cm_n, cmap=cmap)
 
     # Set labels
     ax.set_xticks(np.arange(len(class_names)))
@@ -312,6 +333,6 @@ def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False,
     # Annotate each cell with its value
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
-            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}", ha='center', va='center', color='black')
+            ax.text(j, i, f"{cm[i, j]:.2f}" if normalize else f"{int(cm[i, j])}\n({cm_n[i, j]:.2f})", ha='center', va='center', color='black')
     
     return ax
