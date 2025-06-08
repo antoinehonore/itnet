@@ -7,26 +7,29 @@
             "bias": [true],
             "activation": ["relu"],
             "layernorm": [false],
-            "skiptemperature":[true],
-            "skipconnections":[true],
+            "skiptemperature":[false],
+            "skipconnections":[false],
             "d_out": [5],
             "init_random": [true],
             "weight_type":["vanilla"],
-            "dropout_p":[0.5],
+            "dropout_p":[0.1],
             "attention_type": ["vanilla"],
             "data_augmentation_pdrop":[0],
             "data_augmentation_n":[4],
-            "output_type": ["qlinear"]
+            "output_type": ["fullmlp"],
+	    "n_layers_output":[2],
+	    "normalization":["domain1"]
         },
         "data":
             {"batch_size":   [1],
             "impute":       ["none"]
             },
         "training":{
-            "n_epochs":[150],
-            "lr":[1e-3],
-            "loss":["BCE"],
-            "grad_step_every":[8]
+            "n_epochs":[10],
+            "lr":[5e-4],
+            "loss":["CE"],
+            "grad_step_every":[256],
+	    "kfold":[0]
             }
     }
 }
