@@ -41,8 +41,6 @@ class lTrainer(L.LightningModule):
         self.model_params = hparams["model"]
         self.save_hyperparameters(hparams)
 
-        self.val_scores = {"y":[], "yhat":[]}
-        self.train_scores = {"y":[], "yhat":[]}
         self.loss_fun_name = hparams["training"]["loss"] 
 
         if self.loss_fun_name == "BCE":
@@ -67,8 +65,8 @@ class lTrainer(L.LightningModule):
         self.model = model
 
         self.init_val_scores()
-        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
-        self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores =  {"y": [],   "logits": [], "yclass":[], "norms": []}
         
         self.cost_matrix = torch.tensor([[0,7,8,9,10,0], [200,0,7,8,9,0], [300,200,0,7,8,0], [400,300,200,0,7,0], [500,400,300,200,0,0],[0,0,0,0,0,0]])
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
@@ -89,34 +87,34 @@ class lTrainer(L.LightningModule):
             normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
             return normalization
 
-        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
-        self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores =  {"y": [],   "logits": [], "yclass":[], "norms": []}
         self.init_val_scores()
 
     def init_val_scores(self):
-        self.val_scores =   [{"y": [],   "yhat": [], "yclass":[], "norms": []} for _ in range(2)]
+        self.val_scores =   [{"y": [],   "logits": [], "yclass":[], "norms": []} for _ in range(2)]
 
     def compute_loss(self, batch):
         y = batch["targets_OH"]
         yclass = batch["targets_int"]
-        _, yhat = self.model(batch)
+        _, logits = self.model(batch)
 
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
-        self.train_scores["yhat"].append(yhat.detach().squeeze(0))
+        self.train_scores["logits"].append(logits.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
 
         if self.loss_fun_name == "BCE":
             y_n = y
         elif self.loss_fun_name == "CE":
             sample_weights=sample_weights[0,:,0]
-            yhat = yhat[0]
+            logits = logits[0]
             y_n = yclass.long()[0]
         else:
-            yhat = yhat[0]
+            logits = logits[0]
             y_n = y.squeeze(0)
         
-        loss = (self.loss_fun(yhat, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
+        loss = (self.loss_fun(logits, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
         return loss
     
     def training_step(self, batch, batch_idx, dataloader_idx=0):
@@ -138,9 +136,9 @@ class lTrainer(L.LightningModule):
 
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
-            self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+            self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
 
-        yhat = self.model(batch)
+        logits = self.model(batch)
         #norms = self.model.itnet.MMA.norms
         yclass = None
         y = None
@@ -152,101 +150,99 @@ class lTrainer(L.LightningModule):
             y = batch["targets_OH"]
             self.test_scores["y"].append(y.squeeze(0))
 
-        self.test_scores["yhat"].append(yhat.detach().squeeze(0))
+        self.test_scores["logits"].append(logits.detach().squeeze(0))
         #self.test_scores["norms"].append(norms)
     
     def on_test_epoch_end(self):
         scores = {}
-        yhat = torch.cat(self.test_scores["yhat"]).squeeze(-1)
+        logits = torch.cat(self.test_scores["logits"]).squeeze(-1)
 
         if len(self.test_scores["yclass"]) >0:
             yclass = torch.cat(self.test_scores["yclass"]).squeeze(-1)
-            y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
-            scores = self.get_scores(y, yhat, yclass, suffix="/test")
+            y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
+            scores = self.get_scores(y, logits, yclass, suffix="/test")
         else:
-            scores["yhat"] = yhat
+            scores["logits"] = logits
 
-        self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms":[]}
+        self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms":[]}
         return scores
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        _, yhat = self.model(batch)
+        _, logits = self.model(batch)
         #norms = self.model.itnet.MMA.norms
         
         if not ("targets_OH" in batch.keys()):
-            y = torch.eye(yhat.shape[-1], device=yhat.device)[yclass.long()]
+            y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
         else:
             y = batch["targets_OH"]
         
-        if (batch_idx == 0) and (self.logger is not None):
-            timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
-
         self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
         self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
-        self.val_scores[dataloader_idx]["yhat"].append(yhat.squeeze(0))
+        self.val_scores[dataloader_idx]["logits"].append(logits.squeeze(0))
     
-    def get_scores(self, y, yhat, yclass, suffix=""):
-        yhat = yhat.to(torch.float)
+    def get_scores(self, y, logits, yclass, suffix=""):
+        logits = logits.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
-        norms = yhat.pow(2).sum(1).mean(0)
-        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
-        yhat_softmax = torch.nn.functional.softmax(yhat, dim=-1)
+        yhat_sigmoid = torch.nn.functional.sigmoid(logits)
+        yhat_softmax = torch.nn.functional.softmax(logits, dim=-1)
         
         thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
-        thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
-        thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(yhat, yclass.long())
-        thescores["Acc"+suffix] =     multiclass_accuracy(yhat, yclass, average="micro")
-        thescores["F1score"+suffix] = multiclass_f1_score(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Prec"+suffix] =    multiclass_precision(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Recall"+suffix] =  multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["AUROC"+suffix] =   multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
-        thescores["AUPRC"+suffix] =   multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
+        thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
+        thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
+        thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="micro")
+        thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["Prec"+suffix] =    multiclass_precision(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
+        thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
         
         cm = self.compute_confmat(yhat_softmax, yclass)
         
         thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
 
-        thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
-        thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
-        thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
-        thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
-        thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
+        thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(logits, y, criteria="exact_match", k=2)
+        thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="hamming", k=2)
+        thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="overlap", k=2)
+        thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="contain", k=2)
+        thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(logits, y, criteria="belong", k=2)
+        
+        norms = logits.pow(2).sum(1).mean(0)
 
         thescores["norm_sqrt"+suffix] = norms
         return thescores
         
     def on_train_epoch_end(self):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
-        yhat = torch.cat(self.train_scores["yhat"]).squeeze(-1)
+        logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
         yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
 
-        scores = self.get_scores(y, yhat, yclass, suffix="/train")
+        scores = self.get_scores(y, logits, yclass, suffix="/train")
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=True, num_classes=yhat.shape[-1], class_names=self.class_names)
+        plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
         self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
+        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
         
     def on_validation_epoch_end(self):
         for dataloader_idx in range(len(self.val_scores)):
             if len(self.val_scores[dataloader_idx]["y"])>0:
                 y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
-                yhat = torch.cat(self.val_scores[dataloader_idx]["yhat"]).squeeze(-1)
+                logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
 
-                scores = self.get_scores(y, yhat, yclass, suffix="/val{}".format(dataloader_idx))
+                scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
                 self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
 
                 i = 0
                 ax = self.val_recon_figure[1]
                 ax.cla()
-                plot_confusion_matrix(ax, yclass.cpu(), yhat.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=yhat.shape[1], class_names=self.class_names)
+                plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                 if self.logger is not None:
                     self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
 
@@ -259,7 +255,7 @@ class lTrainer(L.LightningModule):
                 lr=self.hparams["training"]['lr'])
         return optim
 
-def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
+def plot_timeline_contribution(axes,timeline,norms,logits,yclass,batch_idx):
     ax = axes[0]
     ax.cla()
     plot_data = torch.cat(list(norms.values()),dim=-1)[batch_idx, 0].cpu().float().numpy()
@@ -275,7 +271,7 @@ def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
     ax.set_ylabel("Modality contribution (%)")
     ax = axes[1]
     ax.cla()
-    ax.plot(timeline, yhat[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
+    ax.plot(timeline, logits[batch_idx].argmax(-1).cpu().float().numpy(),label="Predicted ",marker="x")
     ax.plot(timeline, yclass[batch_idx].cpu().float().numpy(),label="True ",marker="o")
     ax.legend()
     ax.set_xlabel("Time")
