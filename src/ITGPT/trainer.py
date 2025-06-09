@@ -142,7 +142,7 @@ class lTrainer(L.LightningModule):
             self.test_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
 
         yhat = self.model(batch)
-        norms = self.model.itnet.MMA.norms
+        #norms = self.model.itnet.MMA.norms
         yclass = None
         y = None
         if "targets_int" in batch.keys():
@@ -154,7 +154,7 @@ class lTrainer(L.LightningModule):
             self.test_scores["y"].append(y.squeeze(0))
 
         self.test_scores["yhat"].append(yhat.detach().squeeze(0))
-        self.test_scores["norms"].append(norms)
+        #self.test_scores["norms"].append(norms)
     
     def on_test_epoch_end(self):
         scores = {}
