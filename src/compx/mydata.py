@@ -158,17 +158,14 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
 
     elif dataset == "training":
         df = add_class_labels(tte, readouts)
-        df = df[df["class_label_int"]!= 5]
+        #df = df[df["class_label_int"]!= 5]
         df.drop(columns=["length_of_study_time_step"], inplace=True)
-
+    
     elif dataset == "testing":
         df = readouts
 
-        #raise Exception("NYI")
     all_vehicles =  df["vehicle_id"].unique()
 
-
-    #grouped = dict(tuple(df.groupby("vehicle_id")))
     the_dict = {
         v_id: g.drop(columns="vehicle_id").set_index("time_step")
         for v_id, g in df.groupby("vehicle_id")
