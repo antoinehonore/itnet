@@ -52,13 +52,14 @@ class ItnetBlock(torch.nn.Module):
         
         the_encoded_data = self.encodeMMA(batch)
         
-        the_encoded_data = self.activation_function(the_encoded_data)
+        #the_encoded_data = the_encoded_data
         
         if self.hparams["itnet_skipconnections"]:
-            the_encoded_data = the_encoded_data + previous_encoded_data 
+            the_encoded_data = self.activation_function(the_encoded_data) + previous_encoded_data 
         
         if self.decoder:
-            the_decoder_input["reference"] = TSdata(the_encoded_data.unsqueeze(1), batch["reference"].timeline)
+            #the_encoded_data = the_encoded_data
+            the_decoder_input["reference"] = TSdata(self.activation_function(the_encoded_data).unsqueeze(1), batch["reference"].timeline)
             
             yhat = self.decodeMMA(the_decoder_input, mode="decode")
             yhat = {m: TSdata(yhat[m], batch[m].timeline) for m in yhat.keys()}
@@ -162,7 +163,7 @@ class Predictor(torch.nn.Module):
     def forward(self, batch):
         thefeatures = {}
         thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
-        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if ((m!="reference"))}}
+        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}}
         
         yhat, z = self.itgpt(thefeatures)
         return yhat, z

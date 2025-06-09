@@ -171,7 +171,7 @@ class lTrainer(L.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        _,yhat = self.model(batch)
+        _, yhat = self.model(batch)
         #norms = self.model.itnet.MMA.norms
         
         if not ("targets_OH" in batch.keys()):
