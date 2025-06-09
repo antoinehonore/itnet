@@ -162,7 +162,7 @@ class Predictor(torch.nn.Module):
     def forward(self, batch):
         thefeatures = {}
         thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
-        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if ((m!="reference") and (m!="specs"))}}
+        thefeatures = {**thefeatures,**{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if ((m!="reference"))}}
         
         yhat, z = self.itgpt(thefeatures)
         return yhat, z

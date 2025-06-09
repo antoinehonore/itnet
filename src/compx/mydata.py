@@ -21,6 +21,7 @@ class TheDataset(Dataset):
     def __getitem__(self, i):
         thedata = self.data[self.patids[i]]
         thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
+        thedata["data"]={k:v for k,v in thedata.items() if k != "specs"}
         return thedata
 
 #Includes
