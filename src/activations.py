@@ -103,6 +103,7 @@ tranception_ACT2FN = {
     "quick_gelu": quick_gelu,
     "mish": mish,
     "linear": linear_act,
+    "identity": linear_act,
     "sigmoid": torch.sigmoid,
     "squared_relu": squared_relu,
     "squared_relu_xla": squared_relu_xla,

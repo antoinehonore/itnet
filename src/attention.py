@@ -47,6 +47,30 @@ class MultiModalAttention(torch.nn.Module):
                 self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()),
                                     output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
 
+    def forward(self, batch, mode="encode"):
+        """
+            Batch is a dictionnary : {"reference": shape (N, 1, T_1, d_1), "m1": shape (N,1,T_2,d_2), ...}
+        """
+
+        data_q = batch["reference"]
+        data_q = self.compute_Q(data_q)
+
+        if mode == "encode":
+            results    = {mname: uni_modal.forward(data_q, batch[mname]) for mname, uni_modal in self.uni_modal_attention.items()}
+            norms      = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
+            tot_norm   = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
+            self.norms = {k: 100 * v / tot_norm for k,v in norms.items()}
+        
+        elif mode == "decode":
+            results = {mname: uni_modal.forward(batch[mname], data_q) for mname, uni_modal in self.uni_modal_attention.items()}
+        else:
+            raise Exception("Unknown MMA mode={}".format(mode))
+
+        yhat = results
+        if not (self.output_layer is None):
+            yhat = self.output_layer(results)
+        return yhat
+
     def compute_Q(self, data_q):
         timeline = data_q.timeline
 
@@ -61,30 +85,6 @@ class MultiModalAttention(torch.nn.Module):
         else:
            raise Exception("Unknown qk_type={}".format(self.qk_type))
         return TSdata(Q, timeline)
-
-    def forward(self, batch, mode="encode"):
-        """
-            Batch is a dictionnary : {"reference": shape (N, 1, T_1, d_1), "m1": shape (N,1,T_2,d_2), ...}
-        """
-
-        data_q = batch["reference"]
-        data_q = self.compute_Q(data_q)
-
-        if mode == "encode":
-            results    = {mname: uni_modal.forward(data_q, batch[mname]) for mname, uni_modal in self.uni_modal_attention.items()}
-            norms      = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
-            tot_norm   = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
-            self.norms = {k: 100 * v / tot_norm for k,v in norms.items()}
-            
-        elif mode == "decode":
-            results = {mname: uni_modal.forward(batch[mname],data_q) for mname, uni_modal in self.uni_modal_attention.items()}
-        else:
-            raise Exception("Unknown MMA mode={}".format(mode))
-
-        yhat = results
-        if not (self.output_layer is None):
-            yhat = self.output_layer(results)
-        return yhat
 
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 

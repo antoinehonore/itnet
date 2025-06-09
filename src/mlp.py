@@ -44,13 +44,13 @@ class LinearResidualBlock(torch.nn.Module):
 class MLP(torch.nn.Module):
     def __init__(self, input_size, layers_sizes, output_size, activation="relu", dropout_p=0, layernorm=False, skipconnections=False, skiptemperature=False,bias=True):
         super(MLP,self).__init__()
-        all_params = dict(dropout_p=dropout_p, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature,bias=bias)
+        all_params = dict(dropout_p=dropout_p, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature, bias=bias)
         if len(layers_sizes)>0:
             layers_sizes = [input_size] + layers_sizes + [output_size]
 
             self.layers = []
             for i in range(len(layers_sizes)-1):
-                thelayer = LinearResidualBlock(layers_sizes[i], layers_sizes[i+1], activation, **all_params)
+                thelayer = LinearResidualBlock(layers_sizes[i], layers_sizes[i+1], activation if i<len(layers_sizes)-1 else "identity", **all_params)
                 self.layers.append(thelayer)
         else:
             self.layers = [torch.nn.Linear(input_size,output_size,bias=bias)]
