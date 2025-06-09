@@ -181,14 +181,7 @@ class lTrainer(L.LightningModule):
             y = batch["targets_OH"]
         
         if (batch_idx == 0) and (self.logger is not None):
-            #norms_mean = {"norm/"+k+"/val{}".format(dataloader_idx):norms[k].mean() for k in norms.keys()}
-
-            #self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
-
             timeline = batch["data"]["reference"][batch_idx].cpu().numpy()
-            #fig, axes = self.val_senspec_figure
-            #axes = plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx)
-            #self.logger.experiment.add_figure("mod_contributions/val{}".format(dataloader_idx), fig, self.the_training_step)
 
         self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
         self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
@@ -210,8 +203,8 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] = multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
         thescores["AUROC"+suffix] = multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
         thescores["AUPRC"+suffix] = multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
-        cm = self.compute_confmat(yhat, yclass)
-        thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
+        #cm = self.compute_confmat(yhat, yclass)
+        #thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)

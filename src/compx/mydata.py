@@ -65,9 +65,9 @@ def get_class_label_int(row):
     else:
         return 5 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
 
-def get_class_label_OH(iclass):
-    tmp = torch.zeros(5, dtype=torch.float)
-    if iclass<5:
+def get_class_label_OH(iclass, n_classes=6):
+    tmp = torch.zeros(n_classes, dtype=torch.float)
+    if iclass<n_classes:
         tmp[iclass] = 1
     return tmp.reshape(1,-1)
 

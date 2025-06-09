@@ -143,8 +143,6 @@ def main(args):
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset.data, k=hparams["training"]["kfold"])
-    #tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
-
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
@@ -159,8 +157,8 @@ def main(args):
         val_set_internal = Subset(dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
-        val_internal_dataloader =   DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
-        exp_name=exp_name_+"/fold{}".format(fold_idx)
+        val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
+        exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -173,7 +171,7 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None
+        limit_train_batches = None if not args.small else 2
         limit_test_batches = limit_train_batches
         limit_val_batches = limit_train_batches
 
