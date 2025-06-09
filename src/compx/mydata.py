@@ -118,9 +118,8 @@ def add_class_labels(tte, readouts):
     return df
 
 def remove_missing_rows(dd):
-    drop_idx = (dd.isna().sum(1).values == dd.shape[1])
-    dd = dd.drop(index=dd.loc[drop_idx].index)
-    #dd = dd[keep_idx]
+    #drop_idx = (dd.isna().sum(1).values == dd.shape[1])
+    dd = dd.dropna(how="all",axis=0)    #dd = dd[keep_idx]
     assert not (dd.isna().any().any())
     return dd
 
