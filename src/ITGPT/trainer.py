@@ -190,7 +190,7 @@ class lTrainer(L.LightningModule):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
-        
+        norms = yhat.pow(2).sum(1).mean(0)
         yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
         yhat_softmax = torch.nn.functional.softmax(yhat, dim=-1)
         
@@ -213,6 +213,8 @@ class lTrainer(L.LightningModule):
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="overlap", k=2)
         thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="contain", k=2)
         thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(yhat, y, criteria="belong", k=2)
+
+        thescores["norm_sqrt"+suffix] = norms
         return thescores
         
     def on_train_epoch_end(self):

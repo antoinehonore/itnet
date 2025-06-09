@@ -188,7 +188,7 @@ def main(args):
                                   "num_sanity_val_steps":0}
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
-
+        
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1,
@@ -202,10 +202,10 @@ def main(args):
         
         outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
-        results={}
+        results = {}
         results["train"] =  trainer.validate(ltrainer, dataloaders=[train_dataloader])
-        results["val_internal"] =    trainer.validate(ltrainer, dataloaders=[val_internal_dataloader])
-        results["val"] = trainer.validate(ltrainer, dataloaders=[val_dataloader])
+        results["val_internal"] =    trainer.test(ltrainer, dataloaders=[val_internal_dataloader])
+        results["val"] = trainer.test(ltrainer, dataloaders=[val_dataloader])
         results["test"] = trainer.test(ltrainer, dataloaders=test_dataloader)
         
         write_pklz(outputfname, results)
