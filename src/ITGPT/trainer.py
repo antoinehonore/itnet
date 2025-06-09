@@ -71,7 +71,7 @@ class lTrainer(L.LightningModule):
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
         
         self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
-        self.class_names = [">48", "48-24", "24-12", "12-6", "<6"]
+        self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
 
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
     
