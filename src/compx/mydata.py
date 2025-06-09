@@ -119,7 +119,7 @@ def add_class_labels(tte, readouts):
 
 def remove_missing_rows(dd):
     drop_idx = (dd.isna().sum(1).values == dd.shape[1])
-    dd.drop(index=dd.loc[drop_idx].index,inplace=True)
+    dd = dd.drop(index=dd.loc[drop_idx].index)
     #dd = dd[keep_idx]
     assert not (dd.isna().any().any())
     return dd
@@ -172,9 +172,9 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
         for v_id, g in df.groupby("vehicle_id")
     }
     def get_vid_data(v_id,dd,specs):
-        numerics = {num_varname[0]: dataframe2X(dd[num_varname].copy())  for num_varname in num_variables}
-        categorical = {cat_varname:    dataframe2X(dd[cat_varnames].copy()) for cat_varname,cat_varnames in cat_variables.items()}
-        specs = {"specs": append_dummy_timeline(specs.copy()) }
+        numerics = {num_varname[0]: dataframe2X(dd[num_varname])  for num_varname in num_variables}
+        categorical = {cat_varname:    dataframe2X(dd[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()}
+        specs = {"specs": append_dummy_timeline(specs) }
         return {**numerics, **categorical, **specs}
 
     the_dict2 = {v_id:
