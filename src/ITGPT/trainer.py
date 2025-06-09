@@ -70,7 +70,7 @@ class lTrainer(L.LightningModule):
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
         self.test_scores =  {"y": [],   "yhat": [], "yclass":[], "norms": []}
         
-        self.cost_matrix = torch.tensor([[0,7,8,9,10], [200,0,7,8,9], [300,200,0,7,8], [400,300,200,0,7], [500,400,300,200,0]])
+        self.cost_matrix = torch.tensor([[0,7,8,9,10,0], [200,0,7,8,9,0], [300,200,0,7,8,0], [400,300,200,0,7,0], [500,400,300,200,0,0],[0,0,0,0,0,0]])
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
 
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
@@ -123,7 +123,6 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         loss = 0.0
         self.the_training_step += 1
-        log_dict = {}
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
         #norms = self.model.itgpt.encodingMMA.norms
@@ -191,20 +190,23 @@ class lTrainer(L.LightningModule):
         yhat = yhat.to(torch.float)
         y = y.to(torch.float)
         yclass = yclass.long()
-        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
-        yhat_softmax = torch.nn.functional.sigmoid(yhat)
         
-        thescores = {"mse" + suffix: torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
-        thescores["BCE" + suffix] = torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
-        thescores["CE" + suffix] = torch.nn.functional.cross_entropy(yhat, yclass.long())
-        thescores["Acc"+suffix] = multiclass_accuracy(yhat, yclass, average="micro")
+        yhat_sigmoid = torch.nn.functional.sigmoid(yhat)
+        yhat_softmax = torch.nn.functional.softmax(yhat, dim=-1)
+        
+        thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
+        thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(yhat, y)
+        thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(yhat, yclass.long())
+        thescores["Acc"+suffix] =     multiclass_accuracy(yhat, yclass, average="micro")
         thescores["F1score"+suffix] = multiclass_f1_score(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Prec"+suffix] = multiclass_precision(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["Recall"+suffix] = multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
-        thescores["AUROC"+suffix] = multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
-        thescores["AUPRC"+suffix] = multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
-        #cm = self.compute_confmat(yhat, yclass)
-        #thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
+        thescores["Prec"+suffix] =    multiclass_precision(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["Recall"+suffix] =  multiclass_recall(yhat, yclass, average="micro", num_classes=yhat.shape[-1])
+        thescores["AUROC"+suffix] =   multiclass_auroc(yhat, yclass, num_classes=yhat.shape[-1])
+        thescores["AUPRC"+suffix] =   multiclass_auprc(yhat, yclass, num_classes=yhat.shape[-1])
+        
+        cm = self.compute_confmat(yhat_softmax, yclass)
+        
+        thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
 
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(yhat, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(yhat, y, criteria="hamming", k=2)
@@ -228,7 +230,7 @@ class lTrainer(L.LightningModule):
         
         self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = {"y": [],   "yhat": [], "yclass":[], "norms": []}
-
+        
     def on_validation_epoch_end(self):
         for dataloader_idx in range(len(self.val_scores)):
             if len(self.val_scores[dataloader_idx]["y"])>0:
@@ -248,7 +250,6 @@ class lTrainer(L.LightningModule):
 
         self.init_val_scores()
         return scores
-
 
 
     def configure_optimizers(self):
@@ -280,7 +281,7 @@ def plot_timeline_contribution(axes,timeline,norms,yhat,yclass,batch_idx):
     return axes
 
 
-def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=5):
+def plot_confusion_matrix(ax, y_true, y_pred, class_names=None, normalize=False, cmap="Blues", num_classes=6):
     """
     Plots a confusion matrix using matplotlib.
     

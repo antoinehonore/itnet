@@ -16,8 +16,8 @@ class ItnetBlock(torch.nn.Module):
 
         self.activation_function = get_activation(hparams["activation"])()
 
-        self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
-        self.data_augmentation_n = hparams["data_augmentation_n"]
+        #self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
+        #self.data_augmentation_n = hparams["data_augmentation_n"]
         
         kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
         
@@ -28,9 +28,6 @@ class ItnetBlock(torch.nn.Module):
             )
             
         if self.decoder:
-            # 
-            # d_in_q, d_in_kv, d_qk, d_out
-            # (d_in_q, d_in_kv, d_qk, d_out)
             decoder_modalities = {mname: dict(in_q=D["in_q"], in_kv=D["out_qk"], out_qk=D["out_qk"], out_v=D["in_kv"]) for mname, D in hparams["modalities_dimension"].items()}
 
             self.decodeMMA = MultiModalAttention(decoder_modalities,
@@ -90,7 +87,7 @@ class ITGPT(torch.nn.Module):
         input_dimensions = {mname: (D["in_kv"], int(round(D["in_kv"]*(1+hparams["itnet_embedding_dim_p"])))) 
                                     for mname,D in hparams["modalities_dimension"].items()
                             }
-                             
+        
         output_dimensions = {mname: D[::-1] 
                                     for mname, D in input_dimensions.items()
                             }

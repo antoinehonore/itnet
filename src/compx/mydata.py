@@ -5,18 +5,15 @@ import numpy as np
 
 
 class TheDataset(Dataset):
-    def __init__(self, data, device="cpu"):
+    def __init__(self, data):
         self.patids = list(data.keys())
         self.data = data  ###  {cutter_no: {m:data[cutter_no]["calX"][m].to(device=device)for m in data[cutter_no]["calX"].keys()} for cutter_no in data.keys()}
-        self.mu = None
-        self.sigma = None
-        self.device = device
-    
         
     def get_class_weights(self):
+        self.n_classes = self.data[self.patids[0]]["targets_OH"].shape[1]
+
         y = torch.cat([d["targets_int"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
-        n_classes = self.data[list(self.data.keys())[0]]["targets_OH"].shape[1]
-        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.arange(n_classes), y=y)).to(dtype=torch.float32) #/len(self.data.values())
+        self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.arange(self.n_classes), y=y)).to(dtype=torch.float32) #/len(self.data.values())
     
     def __len__(self):
         return len(self.patids)
@@ -72,38 +69,23 @@ def get_class_label_OH(iclass, n_classes=6):
     return tmp.reshape(1,-1)
 
 def get_class_label_multilabel(row):
-    tmp = torch.zeros(6, dtype=torch.float)
     if row['time_to_potential_event'] > 48:
-        tmp[0] = 1 #No failure within 48 time steps
-    elif row['time_to_potential_event'] > 24 and row['in_study_repair'] == 1:
-        tmp[1] = 1 #Failure within 48 to 24 time steps
-    elif row['time_to_potential_event'] > 12 and row['in_study_repair'] == 1:
-        tmp[2] = 1 #Failure within 24 to 12 time steps
-    elif row['time_to_potential_event'] > 6 and row['in_study_repair'] == 1:
-        tmp[3] = 1 #Failure within 12 to 6 time steps
-    elif row['time_to_potential_event'] > 0 and row['in_study_repair'] == 1:
-        tmp[4] = 1 #Failure within 6 to 0 time steps
-    else:
-        tmp[5] = 1 #No failure reported, but within 48 time steps from the end of the study, don't know if it will fail or not
+        tmp[0] = 1
+
+    if row['in_study_repair'] == 1: # Failure reported
+        if row['time_to_potential_event'] <= 48: #In less than 48 timesteps
+            tmp[1] = 1
+        if row['time_to_potential_event'] <= 24: #In less than 24 timesteps
+            tmp[2] = 1
+        if row['time_to_potential_event'] <= 12: #In less than 12 timesteps
+            tmp[3] = 1
+        if row['time_to_potential_event'] <= 6: #In less than 6 timesteps
+            tmp[4] = 1
+    #
+    elif row['time_to_potential_event'] <= 48: # Might fail after end of study.
+        tmp[5] = 1
+    #
     return tmp.reshape(1,-1)
-
-    #if row['time_to_potential_event'] > 48:
-    #    tmp[0] = 1
-
-    #if row['in_study_repair'] == 1: # Failure reported
-    #    if row['time_to_potential_event'] <= 48: #In less than 48 timesteps
-    #        tmp[1] = 1
-    #    if row['time_to_potential_event'] <= 24: #In less than 24 timesteps
-    #        tmp[2] = 1
-    #    if row['time_to_potential_event'] <= 12: #In less than 12 timesteps
-    #        tmp[3] = 1
-    #    if row['time_to_potential_event'] <= 6: #In less than 6 timesteps
-    #        tmp[4] = 1
-    #
-    #elif row['time_to_potential_event'] <= 48: # Might fail after end of study.
-    #    tmp[5] = 1
-    #
-    #return tmp.reshape(1,-1)
 
     #classes denoted by 0, 1, 2, 3, 4 where they are related to readouts within a time window of: (more than 48), (48 to 24), (24 to 12), (12 to 6), and (6 to 0) time_step before the failure, respectively
     
