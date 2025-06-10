@@ -167,7 +167,7 @@ class lTrainer(L.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        max_values = {k:v.abs().max() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
+        max_values = {k: (v+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         _, logits = self.model(batch)
         
         if not ("targets_OH" in batch.keys()):
@@ -178,7 +178,7 @@ class lTrainer(L.LightningModule):
         self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
         self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
         self.val_scores[dataloader_idx]["logits"].append(logits.squeeze(0))
-        #self.val_scores[dataloader_idx]["norms"].append(max_values)
+        self.val_scores[dataloader_idx]["norms"].append(max_values)
         
     def get_scores(self, y, logits, yclass, suffix=""):
         logits = logits.to(torch.float)
@@ -234,9 +234,13 @@ class lTrainer(L.LightningModule):
                 y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
                 logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
+                dict_norms = pd.DataFrame(self.val_scores[dataloader_idx]["norms"]).mean(0).to_dict()
+                dict_norms = {k+"/val{}".format(dataloader_idx):v for k,v in dict_norms.items()}
+                #torch.cat(self.val_scores[dataloader_idx]["norms"]).squeeze(-1)
 
                 scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
-                self.log_dict(scores, on_epoch=True, on_step=False)
+                #scores[]
+                self.log_dict({**scores,**dict_norms}, on_epoch=True, on_step=False)
 
                 ax = self.val_recon_figure[dataloader_idx][1]
                 ax.cla()
