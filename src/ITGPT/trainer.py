@@ -167,7 +167,7 @@ class lTrainer(L.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        max_values = {k: (v+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
+        max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         _, logits = self.model(batch)
         
         if not ("targets_OH" in batch.keys()):
