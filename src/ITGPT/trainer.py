@@ -67,7 +67,7 @@ class lTrainer(L.LightningModule):
 
         self.init_val_scores()
         self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
-        self.test_scores = self.init_dict()# {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores = self.init_dict() # {"y": [],   "logits": [], "yclass":[], "norms": []}
         
         self.cost_matrix = torch.tensor([[0,7,8,9,10,0], [200,0,7,8,9,0], [300,200,0,7,8,0], [400,300,200,0,7,0], [500,400,300,200,0,0],[0,0,0,0,0,0]])
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
@@ -77,6 +77,11 @@ class lTrainer(L.LightningModule):
     def configure_model(self):
         if self.model is not None:
             return
+
+    def configure_optimizers(self):
+        optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
+                lr=self.hparams["training"]['lr'])
+        return optim
 
     def on_train_start(self):
         self.logger.log_hyperparams(self.hparams, 
@@ -96,7 +101,7 @@ class lTrainer(L.LightningModule):
         self.val_scores =   [self.init_dict() for _ in range(2)]
 
     def init_dict(self):
-        return {"y": [],   "logits": [], "yclass":[], "norms":[]}
+        return {"y": [],   "logits": [], "yclass":[], "xhat_var":[]}
 
     def compute_loss(self, batch):
         y = batch["targets_OH"]
@@ -121,6 +126,36 @@ class lTrainer(L.LightningModule):
         loss = (self.loss_fun(logits, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
         return loss
     
+    def get_scores(self, y, logits, yclass, suffix=""):
+        logits = logits.to(torch.float)
+        y = y.to(torch.float)
+        yclass = yclass.long()
+        yhat_sigmoid = torch.nn.functional.sigmoid(logits)
+        yhat_softmax = torch.nn.functional.softmax(logits, dim=-1)
+        
+        thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
+        thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
+        thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
+        thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="micro")
+        thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["Prec"+suffix] =    multiclass_precision(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
+        thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
+        thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
+        
+        cm = self.compute_confmat(yhat_softmax, yclass)
+        
+        thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
+
+        thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(logits, y, criteria="exact_match", k=2)
+        thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="hamming", k=2)
+        thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="overlap", k=2)
+        thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="contain", k=2)
+        thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(logits, y, criteria="belong", k=2)
+        
+        return thescores
+        
+
     def training_step(self, batch, batch_idx, dataloader_idx=0):
         opt = self.optimizers()
         self.the_training_step += 1
@@ -220,41 +255,6 @@ class lTrainer(L.LightningModule):
 
         self.test_scores = self.init_dict()
         return scores
-
-    def get_scores(self, y, logits, yclass, suffix=""):
-        logits = logits.to(torch.float)
-        y = y.to(torch.float)
-        yclass = yclass.long()
-        yhat_sigmoid = torch.nn.functional.sigmoid(logits)
-        yhat_softmax = torch.nn.functional.softmax(logits, dim=-1)
-        
-        thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
-        thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
-        thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
-        thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="micro")
-        thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["Prec"+suffix] =    multiclass_precision(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
-        thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
-        
-        cm = self.compute_confmat(yhat_softmax, yclass)
-        
-        thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device) * cm).sum() / cm.sum()
-
-        thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(logits, y, criteria="exact_match", k=2)
-        thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="hamming", k=2)
-        thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="overlap", k=2)
-        thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="contain", k=2)
-        thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(logits, y, criteria="belong", k=2)
-        
-        return thescores
-        
-
-    def configure_optimizers(self):
-        optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
-                lr=self.hparams["training"]['lr'])
-        return optim
 
 def plot_timeline_contribution(axes,timeline,norms,logits,yclass,batch_idx):
     ax = axes[0]
