@@ -66,8 +66,8 @@ class lTrainer(L.LightningModule):
         self.model = model
 
         self.init_val_scores()
-        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
-        self.test_scores =  {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores = self.init_dict()# {"y": [],   "logits": [], "yclass":[], "norms": []}
         
         self.cost_matrix = torch.tensor([[0,7,8,9,10,0], [200,0,7,8,9,0], [300,200,0,7,8,0], [400,300,200,0,7,0], [500,400,300,200,0,0],[0,0,0,0,0,0]])
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
@@ -88,12 +88,15 @@ class lTrainer(L.LightningModule):
             normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
             return normalization
 
-        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
-        self.test_scores =  {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores =  self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
         self.init_val_scores()
 
     def init_val_scores(self):
-        self.val_scores =   [{"y": [],   "logits": [], "yclass":[], "norms": []} for _ in range(2)]
+        self.val_scores =   [self.init_dict() for _ in range(2)]
+
+    def init_dict(self):
+        return {"y": [],   "logits": [], "yclass":[], "norms":[]}
 
     def compute_loss(self, batch):
         y = batch["targets_OH"]
@@ -122,7 +125,6 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         self.the_training_step += 1
         loss = self.compute_loss(batch)
-        #max_values = {k:v.abs().max() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         self.manual_backward(loss)
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
@@ -130,11 +132,67 @@ class lTrainer(L.LightningModule):
             opt.zero_grad()
 
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-        #self.log_dict(max_values, on_epoch=False, batch_size=1, on_step=True)
 
+    def on_train_epoch_end(self):
+        y = torch.cat(self.train_scores["y"]).squeeze(-1)
+        logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
+        yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
+
+        scores = self.get_scores(y, logits, yclass, suffix="/train")
+        i = 0
+        ax = self.train_recon_figure[1]
+        ax.cla()
+        plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
+        if self.logger is not None:
+            self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
+        
+        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+        self.train_scores = self.init_dict()
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        yclass = batch["targets_int"]
+        max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
+        xhat, logits = self.model(batch)
+        xhat_var = {k: v.data.var(-1).mean(-1).item() for k,v in xhat.items() if (k!= "specs") and (k!="reference")}
+
+        if not ("targets_OH" in batch.keys()):
+            y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
+        else:
+            y = batch["targets_OH"]
+        
+        self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
+        self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
+        self.val_scores[dataloader_idx]["logits"].append(logits.squeeze(0))
+        self.val_scores[dataloader_idx]["xhat_var"].append(xhat_var)
+       
+    def on_validation_epoch_end(self):
+        for dataloader_idx in range(len(self.val_scores)):
+            if len(self.val_scores[dataloader_idx]["y"])>0:
+                y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
+                logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
+                yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
+                
+                dict_xhat_var = pd.DataFrame(self.val_scores[dataloader_idx]["xhat_var"]).mean(0).to_dict()
+                dict_xhat_var = {"xhat_var/"+k+"/val{}".format(dataloader_idx):v for k,v in dict_xhat_var.items()}
+
+                logits_var = logits.var(1).mean(0)
+                dict_xhat_var["logits_var"+suffix] = logits_var
+
+                scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
+                self.log_dict({**scores, **dict_xhat_var}, on_epoch=True, on_step=False)
+
+                ax = self.val_recon_figure[dataloader_idx][1]
+                ax.cla()
+                plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
+                if self.logger is not None:
+                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
+
+        self.init_val_scores()
+        return scores
+     
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
-            self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
+            self.test_scores = {"y": [],   "logits": [], "yclass":[], "xhat_var": []}
 
         _, logits = self.model(batch)
         yclass = None
@@ -160,25 +218,9 @@ class lTrainer(L.LightningModule):
         else:
             scores["logits"] = logits
 
-        self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms":[]}
+        self.test_scores = self.init_dict()
         return scores
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        yclass = batch["targets_int"]
-        #max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
-        xhat, logits = self.model(batch)
-        max_values = {k: v.data.var().item() for k,v in xhat.items() if (k!= "specs") and (k!="reference")}
-
-        if not ("targets_OH" in batch.keys()):
-            y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
-        else:
-            y = batch["targets_OH"]
-        
-        self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
-        self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
-        self.val_scores[dataloader_idx]["logits"].append(logits.squeeze(0))
-        self.val_scores[dataloader_idx]["norms"].append(max_values)
-        
     def get_scores(self, y, logits, yclass, suffix=""):
         logits = logits.to(torch.float)
         y = y.to(torch.float)
@@ -206,50 +248,8 @@ class lTrainer(L.LightningModule):
         thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="contain", k=2)
         thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(logits, y, criteria="belong", k=2)
         
-        norms = logits.var(1).mean(0)
-
-        thescores["norm_sqrt"+suffix] = norms
         return thescores
         
-    def on_train_epoch_end(self):
-        y = torch.cat(self.train_scores["y"]).squeeze(-1)
-        logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
-        yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
-
-        scores = self.get_scores(y, logits, yclass, suffix="/train")
-        i = 0
-        ax = self.train_recon_figure[1]
-        ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
-        if self.logger is not None:
-            self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
-        
-        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
-        
-    def on_validation_epoch_end(self):
-        for dataloader_idx in range(len(self.val_scores)):
-            if len(self.val_scores[dataloader_idx]["y"])>0:
-                y = torch.cat(self.val_scores[dataloader_idx]["y"]).squeeze(-1)
-                logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
-                yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
-                dict_norms = pd.DataFrame(self.val_scores[dataloader_idx]["norms"]).mean(0).to_dict()
-                dict_norms = {"log(1+x).var/"+k+"/val{}".format(dataloader_idx):v for k,v in dict_norms.items()}
-                #torch.cat(self.val_scores[dataloader_idx]["norms"]).squeeze(-1)
-
-                scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
-                #scores[]
-                self.log_dict({**scores,**dict_norms}, on_epoch=True, on_step=False)
-
-                ax = self.val_recon_figure[dataloader_idx][1]
-                ax.cla()
-                plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
-                if self.logger is not None:
-                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
-
-        self.init_val_scores()
-        return scores
-
 
     def configure_optimizers(self):
         optim = torch.optim.Adam([p for p in self.model.parameters() if p.requires_grad], 
