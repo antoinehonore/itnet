@@ -55,7 +55,7 @@ class lTrainer(L.LightningModule):
             raise Exception("Loss function "+self.loss_fun_name+" is NYI.")
 
         self.train_recon_figure     = plt.subplots(figsize=(5,4))
-        self.val_recon_figure       = plt.subplots(figsize=(5,4))
+        self.val_recon_figure       = [plt.subplots(figsize=(5,4)) for _ in range(2)]
         self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,6))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
 
@@ -99,6 +99,9 @@ class lTrainer(L.LightningModule):
         yclass = batch["targets_int"]
         _, logits = self.model(batch)
 
+        # batch["data"]["reference"]=batch["data"]["reference"][...,[-1]]
+        # _, logits2 = self.model(batch)
+
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
@@ -119,7 +122,6 @@ class lTrainer(L.LightningModule):
     
     def training_step(self, batch, batch_idx, dataloader_idx=0):
         opt = self.optimizers()
-        loss = 0.0
         self.the_training_step += 1
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
@@ -229,13 +231,13 @@ class lTrainer(L.LightningModule):
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
 
                 scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
-                self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+                self.log_dict(scores, on_epoch=True, on_step=False)
 
-                ax = self.val_recon_figure[1]
+                ax = self.val_recon_figure[dataloader_idx][1]
                 ax.cla()
                 plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                 if self.logger is not None:
-                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[0], self.the_training_step)
+                    self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
 
         self.init_val_scores()
         return scores
