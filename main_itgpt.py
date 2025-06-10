@@ -44,7 +44,7 @@ def get_modality_dimensions(data_dimensions, model_params):
 
     elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
         # d_in_q, d_in_kv, d_qk, d_out
-        modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items() if "mname" != "specs"}
+        modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items()}
     return modalities_dimension
 
 def patient_timesplit(patid, d, n_splits=5):
@@ -62,9 +62,8 @@ def patient_timesplit(patid, d, n_splits=5):
 
     return out_tr, out_val
 
-def get_tr_val_index_lists(data, k=5):
-    patids = np.array(list(data.keys()))
-
+def get_tr_val_index_lists(dataset, k=5):
+    patids = np.array(dataset.patids)
     if k>0:
         tr_val_index_lists = KFold(k).split(patids)
     else:
@@ -142,7 +141,7 @@ def main(args):
     data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
-    tr_val_index_lists = get_tr_val_index_lists(dataset.data, k=hparams["training"]["kfold"])
+    tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
@@ -196,7 +195,7 @@ def main(args):
                             **extra_dtraining_kwargs, **limits)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader,val_dataloader])
-    
+
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         

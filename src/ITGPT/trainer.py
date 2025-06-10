@@ -103,7 +103,7 @@ class lTrainer(L.LightningModule):
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
-        
+
         if self.loss_fun_name == "BCE":
             y_n = y
         elif self.loss_fun_name == "CE":
@@ -231,7 +231,6 @@ class lTrainer(L.LightningModule):
                 scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
                 self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
 
-                i = 0
                 ax = self.val_recon_figure[1]
                 ax.cla()
                 plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
