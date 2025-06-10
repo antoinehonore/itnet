@@ -123,23 +123,17 @@ class lTrainer(L.LightningModule):
         self.the_training_step += 1
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
-        #norms = self.model.itgpt.encodingMMA.norms
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
         
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
-        #if batch_idx == 0:
-            #norms_mean = {"norm/"+k+"/train":norms[k].mean() for k in norms.keys()}
-            #self.log_dict(norms_mean, on_epoch=False,on_step=True,batch_size=1)
-
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
             self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
 
-        logits = self.model(batch)
-        #norms = self.model.itnet.MMA.norms
+        _, logits = self.model(batch)
         yclass = None
         y = None
         if "targets_int" in batch.keys():
@@ -151,7 +145,6 @@ class lTrainer(L.LightningModule):
             self.test_scores["y"].append(y.squeeze(0))
 
         self.test_scores["logits"].append(logits.detach().squeeze(0))
-        #self.test_scores["norms"].append(norms)
     
     def on_test_epoch_end(self):
         scores = {}
@@ -170,7 +163,6 @@ class lTrainer(L.LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
         _, logits = self.model(batch)
-        #norms = self.model.itnet.MMA.norms
         
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]

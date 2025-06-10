@@ -171,7 +171,7 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None if not args.small else 2
+        limit_train_batches = None if not args.small else 20
         limit_test_batches = limit_train_batches
         limit_val_batches = limit_train_batches
 
@@ -188,7 +188,7 @@ def main(args):
                                   "num_sanity_val_steps":0}
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
-        
+
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1,
