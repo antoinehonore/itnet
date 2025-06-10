@@ -100,9 +100,6 @@ class lTrainer(L.LightningModule):
         yclass = batch["targets_int"]
         _, logits = self.model(batch)
 
-        # batch["data"]["reference"]=batch["data"]["reference"][...,[-1]]
-        # _, logits2 = self.model(batch)
-
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
@@ -168,9 +165,10 @@ class lTrainer(L.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
-        max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
-        _, logits = self.model(batch)
-        
+        #max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
+        xhat, logits = self.model(batch)
+        max_values = {k: v.data.var().item() for k,v in xhat.items() if (k!= "specs") and (k!="reference")}
+
         if not ("targets_OH" in batch.keys()):
             y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
         else:

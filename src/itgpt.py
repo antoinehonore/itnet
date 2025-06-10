@@ -11,14 +11,9 @@ class ItnetBlock(torch.nn.Module):
     def __init__(self, hparams, decoder=True):
         super(ItnetBlock, self).__init__()
         self.hparams = hparams
-        
         self.decoder = decoder
-
         self.activation_function = get_activation(hparams["activation"])()
 
-        #self.data_augmentation_pdrop = hparams["data_augmentation_pdrop"]
-        #self.data_augmentation_n = hparams["data_augmentation_n"]
-        
         kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
         
         self.encodeMMA = MultiModalAttention(hparams["modalities_dimension"],
@@ -66,7 +61,6 @@ class ItnetBlock(torch.nn.Module):
             yhat = batch
         return yhat, the_encoded_data
 
-
 class Embedding(torch.nn.Module):
     def __init__(self, dimensions):
         super(Embedding, self).__init__()
@@ -79,7 +73,6 @@ class Embedding(torch.nn.Module):
                 }
         output["reference"] = batch["reference"]
         return output
-
 
 class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
