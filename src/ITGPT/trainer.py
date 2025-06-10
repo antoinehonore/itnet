@@ -124,13 +124,16 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         self.the_training_step += 1
         loss = self.compute_loss(batch)
+        #max_values = {k:v.abs().max() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         self.manual_backward(loss)
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
-        
+
         self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
+        #self.log_dict(max_values, on_epoch=False, batch_size=1, on_step=True)
+
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
             self.test_scores = {"y": [],   "logits": [], "yclass":[], "norms": []}
@@ -164,6 +167,7 @@ class lTrainer(L.LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         yclass = batch["targets_int"]
+        max_values = {k:v.abs().max() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         _, logits = self.model(batch)
         
         if not ("targets_OH" in batch.keys()):
@@ -174,7 +178,8 @@ class lTrainer(L.LightningModule):
         self.val_scores[dataloader_idx]["y"].append(y.squeeze(0))
         self.val_scores[dataloader_idx]["yclass"].append(yclass.squeeze(0))
         self.val_scores[dataloader_idx]["logits"].append(logits.squeeze(0))
-    
+        #self.val_scores[dataloader_idx]["norms"].append(max_values)
+        
     def get_scores(self, y, logits, yclass, suffix=""):
         logits = logits.to(torch.float)
         y = y.to(torch.float)
@@ -202,7 +207,7 @@ class lTrainer(L.LightningModule):
         thescores["topk2/contain"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="contain", k=2)
         thescores["topk2/belong"+ suffix] =  topk_multilabel_accuracy(logits, y, criteria="belong", k=2)
         
-        norms = logits.pow(2).sum(1).mean(0)
+        norms = logits.var(1).mean(0)
 
         thescores["norm_sqrt"+suffix] = norms
         return thescores
