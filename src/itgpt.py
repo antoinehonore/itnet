@@ -26,7 +26,7 @@ class ItnetBlock(torch.nn.Module):
                 n_layers_output=hparams["n_layers_output"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                 weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
             )
-            
+        
         if self.decoder:
             decoder_modalities = {mname: dict(in_q=D["in_q"], in_kv=D["out_qk"], out_qk=D["out_qk"], out_v=D["in_kv"]) for mname, D in hparams["modalities_dimension"].items()}
 
@@ -73,10 +73,13 @@ class Embedding(torch.nn.Module):
         self.embedding_layers = torch.nn.ModuleDict({mname: torch.nn.Linear(dims[0], dims[1]) for mname,dims in dimensions.items()})
     
     def forward(self,batch):
-        return {mname: 
-                    TSdata(self.embedding_layers[mname](batch[mname].data), batch[mname].timeline) if mname != "reference" else batch[mname]
-                    for mname in batch.keys()
-                    }
+        output = {mname: 
+                TSdata(self.embedding_layers[mname](batch[mname].data), batch[mname].timeline)
+                for mname in self.embedding_layers.keys()
+                }
+        output["reference"] = batch["reference"]
+        return output
+
 
 class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
@@ -90,7 +93,7 @@ class ITGPT(torch.nn.Module):
         output_dimensions = {mname: D[::-1] 
                                     for mname, D in input_dimensions.items()
                             }
-
+        
         self.embedding = Embedding(input_dimensions)
         self.output_embedding = Embedding(output_dimensions)
         self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"],hparams["d_out"])
@@ -119,7 +122,7 @@ class ITGPT(torch.nn.Module):
         thedata = {m: TSdata(
                         self.apply_norm(m, batch), 
                         batch[m].timeline)
-            if (m!="reference" and m!="specs") else batch[m]#.clone()
+            if ((m!="reference") and (m!="specs")) else batch[m]#.clone()
             for m in batch.keys()
         }
         thedata = self.embedding(thedata)

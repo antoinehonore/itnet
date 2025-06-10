@@ -44,7 +44,7 @@ def get_modality_dimensions(data_dimensions, model_params):
 
     elif "data" in model_params["qk_type"]: # Attention weight computed from the whole data
         # d_in_q, d_in_kv, d_qk, d_out
-        modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items()}
+        modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items() if "mname" != "specs"}
     return modalities_dimension
 
 def patient_timesplit(patid, d, n_splits=5):
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
     parser.add_argument('--small', action="store_true", default=False, help="Run on all patients by default")
     parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
-    parser.add_argument('--precision', type=str, default="bf16-mixed", help="float encoding")
+    parser.add_argument('--precision', type=str, default="32", help="Float encoding")
 
     args = parser.parse_args()
     main(args)
