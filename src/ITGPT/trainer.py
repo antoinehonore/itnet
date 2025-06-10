@@ -103,11 +103,11 @@ class lTrainer(L.LightningModule):
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
-
+        
         if self.loss_fun_name == "BCE":
             y_n = y
         elif self.loss_fun_name == "CE":
-            sample_weights=sample_weights[0,:,0]
+            sample_weights =sample_weights[0,:,0]
             logits = logits[0]
             y_n = yclass.long()[0]
         else:

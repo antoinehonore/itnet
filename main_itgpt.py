@@ -183,7 +183,7 @@ def main(args):
             limit_test_batches = 10
             limit_val_batches = 10
         
-        extra_dtraining_kwargs = {"precision": "bf16-mixed", 
+        extra_dtraining_kwargs = {"precision": args.precision, 
                                   "use_distributed_sampler":False,
                                   "num_sanity_val_steps":0}
         
@@ -230,6 +230,7 @@ if __name__ == "__main__":
     parser.add_argument('--profiler', type=str, default=None, help="simple or advanced")
     parser.add_argument('--small', action="store_true", default=False, help="Run on all patients by default")
     parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
+    parser.add_argument('--precision', type=str, default="bf16-mixed", help="float encoding")
 
     args = parser.parse_args()
     main(args)
