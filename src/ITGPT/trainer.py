@@ -235,7 +235,7 @@ class lTrainer(L.LightningModule):
                 logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
                 dict_norms = pd.DataFrame(self.val_scores[dataloader_idx]["norms"]).mean(0).to_dict()
-                dict_norms = {k+"/val{}".format(dataloader_idx):v for k,v in dict_norms.items()}
+                dict_norms = {"log(1+x).var/"+k+"/val{}".format(dataloader_idx):v for k,v in dict_norms.items()}
                 #torch.cat(self.val_scores[dataloader_idx]["norms"]).squeeze(-1)
 
                 scores = self.get_scores(y, logits, yclass, suffix="/val{}".format(dataloader_idx))
