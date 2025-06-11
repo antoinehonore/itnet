@@ -92,7 +92,7 @@ def main(args):
     output_fname = args.o
     os.makedirs(output_fname.replace(".pklz",""),exist_ok=True)
     exp_name_ = os.path.join(os.path.basename(os.path.dirname(cfg_fname)), 
-                            os.path.basename(cfg_fname).replace(".json",""))
+                             os.path.basename(cfg_fname).replace(".json",""))
     log_dir = "lightning_logs"
     exp_name = exp_name_
     torch.set_num_threads(4)
@@ -113,7 +113,6 @@ def main(args):
     
     model_params = hparams["model"]
     
-    data_dimensions = {}
     import warnings, socket
     warnings.filterwarnings("ignore")
 
