@@ -155,7 +155,9 @@ class ITGPT(torch.nn.Module):
         return slope
 
     def accumulate_slopes(self,m,tsdata):
-        self.running_slopes[m].append(self.compute_slope(tsdata))
+        slope = self.compute_slope(tsdata)
+        if not (slope.isnan().any()):
+            self.running_slopes[m].append(slope)
 
     def correct_slopes(self, m, tsdata):
         if self.training_slopes[m] is None:
