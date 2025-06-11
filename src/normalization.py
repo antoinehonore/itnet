@@ -2,7 +2,9 @@
 from src.compx.mydata import num_variables, cat_variables
 
 def apply_log(t, eps=1):
-    return (t + eps).log()
+    #if (t<0).any():
+    #    print("")
+    return (t.sign()*2-1)*((t.abs() + eps).log())
 
 def apply_domain_normalization(m, t, eps=1e-5):
     if (m in cat_variables.keys()):
@@ -17,7 +19,8 @@ def apply_domain1_normalization(m, t, eps=1e-5):
     t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
     if (m in cat_variables.keys()):
         # Normalize histograms
-        t[...,:-2] = t[...,:-2] / (t[...,:-2].sum(-1).unsqueeze(-1)+eps)
+        d = t.shape[-1]
+        t[...,:-2-d//2] = t[...,:-2-d//2] / (t[...,:-2-d//2].sum(-1).unsqueeze(-1)+eps)
     #else:
     t = apply_log(t)
     return t

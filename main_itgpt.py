@@ -127,7 +127,7 @@ def main(args):
         class_weights = dataset.class_weights
         datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//20:]}
 
-        write_pklz("data/compx/datasmall.pklz",[class_weights, datasmall, valdata, testdata])
+        write_pklz("data/compx/datasmall.pklz", [class_weights, datasmall, valdata, testdata])
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
 

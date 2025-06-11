@@ -208,7 +208,7 @@ class lTrainer(L.LightningModule):
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
                 suffix = "/val{}".format(dataloader_idx)
                 dict_xhat_var = pd.DataFrame(self.val_scores[dataloader_idx]["xhat_var"]).mean(0).to_dict()
-                dict_xhat_var = {"xhat_var/"+k+suffix:v for k,v in dict_xhat_var.items()}
+                dict_xhat_var = {"xhat_var/"+k+suffix: v for k,v in dict_xhat_var.items()}
 
                 logits_var = logits.var(1).mean(0)
                 dict_xhat_var["logits_var"+suffix] = logits_var
@@ -227,7 +227,7 @@ class lTrainer(L.LightningModule):
      
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         if batch_idx ==0:
-            self.test_scores = {"y": [],   "logits": [], "yclass":[], "xhat_var": []}
+            self.test_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "xhat_var": []}
 
         _, logits = self.model(batch)
         yclass = None

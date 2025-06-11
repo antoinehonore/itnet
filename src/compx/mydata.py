@@ -112,7 +112,7 @@ def dataframe2X(dd, append_diff=True):
     t = dd.index.values
     X = dd.values
     if X.shape[0] > 0:
-        l = [X]
+        l = [X, np.diff(X,axis=0,prepend=X[0,0])]
         if append_diff:
             l += [np.diff(t,prepend=t[0]).reshape(-1,1)]
         l += [t.reshape(-1,1)]
@@ -127,7 +127,13 @@ def append_dummy_timeline(dd, append_diff=True):
     else:
         out = torch.from_numpy(np.concat([dd.values,np.array([[0]])], axis=1)).to(torch.float)
     return out
-    
+
+def get_vid_data(v_id, dd, specs):
+    numerics = {num_varname[0]: dataframe2X(dd.copy()[num_varname])  for num_varname in num_variables}
+    categorical = {cat_varname:    dataframe2X(dd.copy()[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()}
+    specs = {"specs": append_dummy_timeline(specs.copy()) }
+    return {**numerics, **categorical, **specs}
+
 def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="training"):
     metadata =      ['vehicle_id', 'time_step']
     targets =       ["in_study_repair", "time_to_potential_event", "class_label"]
@@ -147,20 +153,12 @@ def readouts2dict(readouts, tte, specs, root_dir=".",labels=None,dataset="traini
     elif dataset == "testing":
         df = readouts
 
-    all_vehicles =  df["vehicle_id"].unique()
-
     the_dict = {
         v_id: g.drop(columns="vehicle_id").set_index("time_step")
         for v_id, g in df.groupby("vehicle_id")
     }
-    def get_vid_data(v_id,dd,specs):
-        numerics = {num_varname[0]: dataframe2X(dd.copy()[num_varname])  for num_varname in num_variables}
-        categorical = {cat_varname:    dataframe2X(dd.copy()[cat_varnames]) for cat_varname,cat_varnames in cat_variables.items()}
-        specs = {"specs": append_dummy_timeline(specs.copy()) }
-        return {**numerics, **categorical, **specs}
-
     the_dict2 = {v_id:
-                    {"data":get_vid_data(v_id,dd,specs[specs.index == v_id])
+                    {"data": get_vid_data(v_id,dd,specs[specs.index == v_id])
                     }
                 for v_id, dd in the_dict.items()}
     
