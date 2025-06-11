@@ -121,7 +121,7 @@ def dataframe2X(dd, append_diff=True):
         l += [t.reshape(-1,1)]
         X = np.concat(l, axis=1)
     else:
-        X = np.zeros((1, 2*X.shape[1]+ (1+append_diff)))
+        X = np.zeros((1, X.shape[1]+ (1+append_diff)))
     return torch.from_numpy(X).to(torch.float)
 
 def append_dummy_timeline(dd, append_diff=True):
