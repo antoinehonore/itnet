@@ -112,16 +112,21 @@ def dataframe2X(dd, append_diff=True):
     t = dd.index.values
     X = dd.values
     if X.shape[0] > 0:
-        l = [X]
+        #l = [X]
         l = []
-        l += [np.diff(X,axis=0,prepend=X[0,0])]
+        dx = np.diff(X, axis=0, prepend=X[0,0])
+        assert (dx[0,0]==0)
 
-        if append_diff:
-            l += [np.diff(t,prepend=t[0]).reshape(-1,1)]
-        l += [t.reshape(-1,1)]
+        dt = np.diff(t, prepend=0).reshape(-1,1)
+        dt[0,0] = 1
+        dt2 = np.diff(t, prepend=t[0]).reshape(-1,1)
+
+        l += [X, dx/dt]
+        l += [dt2, t.reshape(-1,1)]
         X = np.concat(l, axis=1)
     else:
-        X = np.zeros((1, X.shape[1]+ (1+append_diff)))
+        X = np.zeros((1, 2*X.shape[1]+ (1+append_diff)))
+
     return torch.from_numpy(X).to(torch.float)
 
 def append_dummy_timeline(dd, append_diff=True):
