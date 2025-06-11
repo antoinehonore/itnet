@@ -112,7 +112,7 @@ def dataframe2X(dd, append_diff=True):
     t = dd.index.values
     X = dd.values
     if X.shape[0] > 0:
-        l = [X]
+        l = [X, np.diff(X,axis=0,prepend=X[0,0])]
         if append_diff:
             l += [np.diff(t,prepend=t[0]).reshape(-1,1)]
         l += [t.reshape(-1,1)]
