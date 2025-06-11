@@ -20,7 +20,7 @@ def apply_domain1_normalization(m, t, eps=1e-5):
     t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
     if (m in cat_variables.keys()):
         # Normalize histograms
-        d = (t.shape[-1]-2)//2
+        d = (t.shape[-1]-2)#//2
         t[...,:d] = t[...,:d] / (t[...,:d].sum(-1).unsqueeze(-1)+eps)
     #else:
     t = apply_log(t)
