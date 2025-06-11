@@ -2,13 +2,16 @@ import torch
 from torch.utils.data import Dataset
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
+from src.datastruct import TSdata
 
+#slope, intercept = np.polyfit(dfmu_train[c].dropna().index, dfmu_train[c].dropna(), 1)
 
 class TheDataset(Dataset):
     def __init__(self, data):
         self.patids = list(data.keys())
         self.data = data  ###  {cutter_no: {m:data[cutter_no]["calX"][m].to(device=device)for m in data[cutter_no]["calX"].keys()} for cutter_no in data.keys()}
-        
+        #self.slopes = {v_id: {k:compute_slope(v) for k,v in self.data[v_id]["data"].items() if (k!="specs") and (k!="reference")} for v_id in self.data.keys()}
+
     def get_class_weights(self):
         self.n_classes = self.data[self.patids[0]]["targets_OH"].shape[1]
 
@@ -122,13 +125,13 @@ def dataframe2X(dd, append_diff=True):
         #dt2 = np.diff(t, prepend=t[0]).reshape(-1,1)
 
         #l += [X]
-        #l += [dt2, t.reshape(-1,1)]
-        #X = np.concat(l, axis=1)
-        pass
+        l = [X, t.reshape(-1,1)]
+        X = np.concat(l, axis=1)
+        
     else:
-        X = np.zeros((1, X.shape[1]))#+ (1+append_diff)))
+        X = np.zeros((1, X.shape[1]+1))#+ (1+append_diff)))
 
-    return torch.from_numpy(X).to(torch.float)
+    return torch.from_numpy(X).to(torch.float)#,t)
 
 def append_dummy_timeline(dd, append_diff=True):
     if append_diff:

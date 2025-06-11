@@ -134,10 +134,10 @@ def main(args):
     dataset.class_weights = class_weights
     
     batch_size = 1
-
+    
     model_params["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
-    data_dimensions = {m: data[a_patid]["data"][m].shape[1] for m in data[a_patid]["data"].keys() if m != "reference"}
+    data_dimensions = {m: data[a_patid]["data"][m].shape[1]-1 for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])

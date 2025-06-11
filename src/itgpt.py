@@ -110,7 +110,12 @@ class ITGPT(torch.nn.Module):
             self.norm_funcs = apply_domain1_normalization#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
         else:
             raise Exception("Unknown normalization={}".format(self.normalization))
-    
+        self.reset_running_slopes()
+
+    def reset_running_slopes(self):
+        self.running_slopes = {m: [] for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
+        self.training_slopes = {m: None for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
+
     def forward(self, batch):
         thedata = {m: TSdata(
                         self.apply_norm(m, batch), 
@@ -138,7 +143,40 @@ class ITGPT(torch.nn.Module):
             xout = batch[m].data
         return xout
 
+    def compute_slope(self, tsdata):
+        """data is (N,H,T,d) and timeline is (N,T)"""
+        dx = torch.diff(tsdata.data,dim=-2)
+        
+        dt = torch.diff(tsdata.timeline,dim=-1).unsqueeze(1).unsqueeze(-1)
+        dt[dt==0]=torch.nan
+        slope =  (dx/dt).nanmean(-2,keepdim=True)
+        slope[slope==0]=1
+
+        return slope
+
+    def accumulate_slopes(self,m,tsdata):
+        self.running_slopes[m].append(self.compute_slope(tsdata))
+
+    def correct_slopes(self, m, tsdata):
+        if self.training_slopes[m] is None:
+            self.training_slopes[m] = sum(self.running_slopes[m])/len(self.running_slopes[m])
+        
+        slope = self.compute_slope(tsdata)
+        if not (slope.isnan().any()):
+
+            corrected_data = tsdata.data*self.training_slopes[m]/slope
+        else:
+            corrected_data = tsdata.data
+        
+        return TSdata(corrected_data, tsdata.timeline)
+
+
     def apply_norm(self, m, batch):
+        if self.training:
+            self.accumulate_slopes(m, batch[m])
+        else:
+            batch[m] = self.correct_slopes(m, batch[m])
+
         if self.normalization == "batch":
             return self.apply_batchnorm(m, batch)
         elif self.normalization == "log":
@@ -159,7 +197,7 @@ class Predictor(torch.nn.Module):
         thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
         thefeatures = {
             **thefeatures,
-        **{m: TSdata(v.unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}
+        **{m: TSdata(v[...,:-1].unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}
         }
         
         yhat, z = self.itgpt(thefeatures)

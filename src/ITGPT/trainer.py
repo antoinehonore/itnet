@@ -87,11 +87,11 @@ class lTrainer(L.LightningModule):
         self.logger.log_hyperparams(self.hparams, 
         {"mse/val": torch.nan, "mse/train": torch.nan})
 
-        def compute_norm(the_loader):
-            all_variable_names = [[k for k in list(batch["data"].keys()) if (k!="specs" and k!="reference")] for batch in the_subset][0]
-            all_data = {k: torch.cat([batch["data"][k] for batch in the_subset]) for k in all_variable_names}
-            normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
-            return normalization
+        #def compute_norm(the_loader):
+        #    all_variable_names = [[k for k in list(batch["data"].keys()) if (k!="specs" and k!="reference")] for batch in the_subset][0]
+        #    all_data = {k: torch.cat([batch["data"][k] for batch in the_subset]) for k in all_variable_names}
+        #    normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
+        #    return normalization
 
         self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
         self.test_scores =  self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
@@ -102,6 +102,9 @@ class lTrainer(L.LightningModule):
 
     def init_dict(self):
         return {"y": [],   "logits": [], "yclass":[], "xhat_var":[]}
+    
+    def on_train_epoch_start(self,):
+        self.model.itgpt.reset_running_slopes()
 
     def compute_loss(self, batch):
         y = batch["targets_OH"]
