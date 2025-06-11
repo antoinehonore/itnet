@@ -113,6 +113,7 @@ def dataframe2X(dd, append_diff=True):
     X = dd.values
     if X.shape[0] > 0:
         l = [X]
+        l = []
         l += [np.diff(X,axis=0,prepend=X[0,0])]
 
         if append_diff:
