@@ -1,5 +1,6 @@
 
 from src.compx.mydata import num_variables, cat_variables
+import torch
 
 def apply_log(t, eps=1):
     #if (t<0).any():
@@ -17,16 +18,17 @@ def apply_domain_normalization(m, t, eps=1e-5):
 
 def apply_domain1_normalization(m, t, eps=1e-5):
     # Initial data dim
-    d = (t.shape[-1]-2)//2
+    #d = (t.shape[-1])#//2
     # Remove the time things
-    t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
+    #t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
     
     # Remove non-normalized data
     #t[...,:d]*=0
     #if (m in cat_variables.keys()):
     #    # Normalize histograms
-    #    d = (t.shape[-1]-2)//2
-    #    t[...,:d] = t[...,:d] / (t[...,:d].sum(-1).unsqueeze(-1)+eps)
-    #else:
+    #    t = t / (t.sum(-1).unsqueeze(-1)+eps)
+    
+    t = t - t.mean(-2, keepdim=True)
+    
     t = apply_log(t)
     return t
