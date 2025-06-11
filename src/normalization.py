@@ -16,8 +16,13 @@ def apply_domain_normalization(m, t, eps=1e-5):
     return t
 
 def apply_domain1_normalization(m, t, eps=1e-5):
+    # Initial data dim
+    d = (t.shape[-1]-2)//2
     # Remove the time things
     t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
+    
+    # Remove non-normalized data
+    t[...,:d]*=0
     #if (m in cat_variables.keys()):
     #    # Normalize histograms
     #    d = (t.shape[-1]-2)//2
