@@ -24,11 +24,10 @@ def apply_domain1_normalization(m, t, eps=1e-5):
     
     # Remove non-normalized data
     #t[...,:d]*=0
-    #if (m in cat_variables.keys()):
-    #    # Normalize histograms
-    #    t = t / (t.sum(-1).unsqueeze(-1)+eps)
+    if (m in cat_variables.keys()):
+        # Normalize histograms
+        t = t / (t.sum(-1).unsqueeze(-1)+eps)
     
-    t = t - t.mean(-2, keepdim=True)
-    
+    #t = t - t.mean(-2, keepdim=True)
     t = apply_log(t)
     return t
