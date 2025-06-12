@@ -73,7 +73,8 @@ class lTrainer(L.LightningModule):
         self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
 
         self.compute_confmat = ConfusionMatrix(task="multiclass", num_classes=self.cost_matrix.shape[-1])
-    
+        self.running_loss = 0.
+
     def configure_model(self):
         if self.model is not None:
             return
@@ -171,11 +172,17 @@ class lTrainer(L.LightningModule):
         #if loss > 2:
         #    print()
 
+        self.running_loss += loss
+
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
+            self.log("{}/train".format(self.loss_fun_name), self.running_loss, 
+                on_epoch=True, batch_size=self.hparams["training"]["grad_step_every"])
 
-        self.log("{}/train".format(self.loss_fun_name), loss, on_epoch=False, batch_size=1, on_step=True)
+            self.running_loss = 0.
+
+        
 
     def on_train_epoch_end(self):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
