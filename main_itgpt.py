@@ -87,6 +87,27 @@ def get_profiler(profiler):
             profiler = AdvancedProfiler(filename="{}_profiler_results.txt".format(profiler))
     return profiler#, num_training_steps
 
+def inference_code(fname_ckpt,val_set):
+    loaded = torch.load(fname_ckpt)
+    hparams = loaded["hyper_parameters"]
+    val_dataloader = DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False, num_workers=0)
+    
+    model = Predictor(hparams["model"])
+    ltrainer=lTrainer(model=model, hparams=hparams)
+    plt.close("all")
+    ltrainer.load_state_dict(loaded["state_dict"])
+    limit_test_batches = None#10
+    L.Trainer(limit_test_batches=limit_test_batches).test(ltrainer, dataloaders=val_dataloader)
+    results = ltrainer.test_scores
+    yclass = torch.cat(results['yclass'])
+    logits = torch.cat(results['logits'])
+    fig, ax = plt.subplots()
+    plot_confusion_matrix(ax, yclass, logits.argmax(-1), num_classes=logits.shape[1])
+
+
+#fname_ckpt = os.path.join(os.path.dirname(fname), "version_1","checkpoints","last.ckpt")
+#inference_code(fname_ckpt,val_set)
+
 def main(args):
     cfg_fname = args.i
     output_fname = args.o
@@ -130,12 +151,12 @@ def main(args):
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
 
-    tr_vids=list(data.keys())
+    tr_vids = list(data.keys())
     val_vids = list(valdata.keys())
 
     assert(len(list(set(tr_vids+val_vids))) == (len(tr_vids)+len(val_vids)))
     data = {**data,**valdata}
-    
+
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
     
@@ -167,6 +188,7 @@ def main(args):
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
+
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
         if args.compile:
@@ -195,11 +217,12 @@ def main(args):
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
 
-        trainer = L.Trainer(max_epochs=n_epochs, logger=logger, log_every_n_steps=log_every_n_steps, 
+        trainer = L.Trainer(max_epochs=n_epochs, logger=logger if not args.fast else None, 
+                            log_every_n_steps=log_every_n_steps  if not args.fast else None, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
-                            enable_progress_bar=args.v>1,
+                            enable_progress_bar=args.v>1  if not args.fast else False,
                             enable_checkpointing=False, profiler=profiler,
-                            **extra_dtraining_kwargs, **limits)
+                            **extra_dtraining_kwargs, **limits, barebones=args.fast)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
@@ -208,12 +231,8 @@ def main(args):
         
         outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
         
-        results = {}
-        results["train"] =  trainer.validate(ltrainer, dataloaders=[train_dataloader])
-        results["val_internal"] =    trainer.test(ltrainer, dataloaders=[val_internal_dataloader])
-        #results["val"] = trainer.test(ltrainer, dataloaders=[val_dataloader])
-        results["test"] = trainer.test(ltrainer, dataloaders=test_dataloader)
-        
+        results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
+
         write_pklz(outputfname, results)
         all_fold_results.append(results)
         
@@ -237,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument('--small', action="store_true", default=False, help="Run on all patients by default")
     parser.add_argument('--compile', action="store_true", default=False, help="Do not compile model by default")
     parser.add_argument('--precision', type=str, default="32", help="Float encoding")
+    parser.add_argument('--fast', action="store_true", default=False, help="Barebones training, no validation")
 
     args = parser.parse_args()
     main(args)
