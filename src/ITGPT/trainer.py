@@ -107,10 +107,13 @@ class lTrainer(L.LightningModule):
         self.model.itgpt.reset_running_slopes()
 
     def compute_loss(self, batch):
-        y = batch["targets_OH"]
         yclass = batch["targets_int"]
         _, logits = self.model(batch)
 
+        if not ("targets_OH" in batch.keys()):
+            y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
+        else:
+            y = batch["targets_OH"]
         self.train_scores["y"].append(y.squeeze(0))
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
@@ -178,7 +181,7 @@ class lTrainer(L.LightningModule):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
         logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
         yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
-        
+
         scores = self.get_scores(y, logits, yclass, suffix="/train")
         i = 0
         ax = self.train_recon_figure[1]
