@@ -164,6 +164,9 @@ class lTrainer(L.LightningModule):
         self.the_training_step += 1
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
+        
+        if loss > 2:
+            print()
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
@@ -175,7 +178,7 @@ class lTrainer(L.LightningModule):
         y = torch.cat(self.train_scores["y"]).squeeze(-1)
         logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
         yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
-
+        
         scores = self.get_scores(y, logits, yclass, suffix="/train")
         i = 0
         ax = self.train_recon_figure[1]

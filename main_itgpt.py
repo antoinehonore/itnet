@@ -130,6 +130,12 @@ def main(args):
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
 
+    tr_vids=list(data.keys())
+    val_vids = list(valdata.keys())
+
+    assert(len(list(set(tr_vids+val_vids))) == (len(tr_vids)+len(val_vids)))
+    data = {**data,**valdata}
+    
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
     
@@ -139,23 +145,25 @@ def main(args):
     a_patid = list(data.keys())[0]
     data_dimensions = {m: data[a_patid]["data"][m].shape[1]-1 for m in data[a_patid]["data"].keys() if m != "reference"}
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
+    
+    loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
 
     tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])
     all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
-    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
-    val_set =  TheDataset(valdata)
-    val_set.class_weights = class_weights
-    val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False)
+    #val_set =  TheDataset(valdata)
+    #val_set.class_weights = class_weights
+    #val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
         val_set_internal = Subset(dataset, fold_val_index)
         
-        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, num_workers=args.j)
-        val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False)
+        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
+        val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
@@ -169,7 +177,7 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None if not args.small else 10
+        limit_train_batches = None if not args.small else 100
         limit_test_batches = limit_train_batches
         limit_val_batches = limit_train_batches
 
@@ -193,7 +201,7 @@ def main(args):
                             enable_checkpointing=False, profiler=profiler,
                             **extra_dtraining_kwargs, **limits)
         
-        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader,val_dataloader])
+        trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
@@ -203,7 +211,7 @@ def main(args):
         results = {}
         results["train"] =  trainer.validate(ltrainer, dataloaders=[train_dataloader])
         results["val_internal"] =    trainer.test(ltrainer, dataloaders=[val_internal_dataloader])
-        results["val"] = trainer.test(ltrainer, dataloaders=[val_dataloader])
+        #results["val"] = trainer.test(ltrainer, dataloaders=[val_dataloader])
         results["test"] = trainer.test(ltrainer, dataloaders=test_dataloader)
         
         write_pklz(outputfname, results)
