@@ -168,8 +168,8 @@ class lTrainer(L.LightningModule):
         loss = self.compute_loss(batch)
         self.manual_backward(loss)
         
-        if loss > 2:
-            print()
+        #if loss > 2:
+        #    print()
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
             opt.step()
