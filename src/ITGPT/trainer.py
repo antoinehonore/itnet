@@ -229,11 +229,10 @@ class lTrainer(L.LightningModule):
 
                 scores = self.get_scores(y, logits, yclass, suffix=suffix)
                 self.log_dict({**scores, **dict_xhat_var}, on_epoch=True, on_step=False)
-
-                ax = self.val_recon_figure[dataloader_idx][1]
-                ax.cla()
-                plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                 if self.logger is not None:
+                    ax = self.val_recon_figure[dataloader_idx][1]
+                    ax.cla()
+                    plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                     self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
 
         return scores
