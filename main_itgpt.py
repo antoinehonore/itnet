@@ -199,7 +199,7 @@ def main(args):
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
-        limit_train_batches = None if not args.small else 100
+        limit_train_batches = None if not args.small else 10
         limit_test_batches = limit_train_batches
         limit_val_batches = limit_train_batches
 
