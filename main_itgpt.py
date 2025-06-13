@@ -65,7 +65,7 @@ def patient_timesplit(patid, d, n_splits=5):
 def get_tr_val_index_lists(dataset, k=5):
     patids = np.array(dataset.patids)
     if k>0:
-        tr_val_index_lists = KFold(k).split(patids)
+        tr_val_index_lists = KFold(k, shuffle=True).split(patids)
     else:
         tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
 
