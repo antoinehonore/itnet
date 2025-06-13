@@ -227,7 +227,7 @@ class lTrainer(L.LightningModule):
                 logits_var = logits.var(1).mean(0)
                 dict_xhat_var["logits_var"+suffix] = logits_var
 
-                scores = self.get_scores(y, logits, yclass, suffix=suffix)
+                scores = self.get_scores(logits, yclass, suffix=suffix)
                 self.log_dict({**scores, **dict_xhat_var}, on_epoch=True, on_step=False)
                 if self.logger is not None:
                     ax = self.val_recon_figure[dataloader_idx][1]
