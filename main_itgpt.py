@@ -229,7 +229,7 @@ def main(args):
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
-        outputfname = os.path.join(log_dir, exp_name, "results.pklz.fold{}".format(fold_idx))
+        outputfname = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
 
