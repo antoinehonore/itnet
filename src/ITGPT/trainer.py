@@ -70,9 +70,13 @@ class lTrainer(L.LightningModule):
         self.test_scores = self.init_dict() # {"y": [],   "logits": [], "yclass":[], "norms": []}
         
         self.cost_matrix = torch.tensor([[0,7,8,9,10,0], [200,0,7,8,9,0], [300,200,0,7,8,0], [400,300,200,0,7,0], [500,400,300,200,0,0],[0,0,0,0,0,0]])
-        self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
+        
+        self.cost_matrix = self.cost_matrix[:hparams["model"]["d_out"], :hparams["model"]["d_out"]]
 
-        self.init_confmat()
+        self.class_names = [">48", "48-24", "24-12", "12-6", "<6", "U"]
+        self.class_names = self.class_names[:hparams["model"]["d_out"]]
+
+        self.init_confmat(n=hparams["model"]["d_out"])
         self.running_loss = 0.
 
     def init_confmat(self,n=None):
@@ -165,7 +169,7 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
         thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
         thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
-        self.init_confmat(n=logits.shape[1])
+        #self.init_confmat(n=logits.shape[1])
 
         cm = self.compute_confmat(yhat_softmax, yclass)
         
