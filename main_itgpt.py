@@ -232,7 +232,12 @@ def main(args):
         outputfname = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
-
+        trainer.test(ltrainer, dataloaders=val_dataloader)
+        results["yclass"] = torch.cat(ltrainer.test_scores['yclass'])
+        results["logits"] = torch.cat(ltrainer.test_scores['logits'])
+        results["ltrainer"] = ltrainer
+        
+        ltrainer.test_scores = []
         write_pklz(outputfname, results)
         all_fold_results.append(results)
         
