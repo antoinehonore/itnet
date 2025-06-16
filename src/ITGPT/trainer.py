@@ -44,13 +44,13 @@ class lTrainer(L.LightningModule):
 
         self.loss_fun_name = hparams["training"]["loss"] 
 
-        if self.loss_fun_name == "BCE":
+        if "BCE" in self.loss_fun_name:
             self.loss_fun = torch.nn.functional.binary_cross_entropy_with_logits#torch.nn.functional.cross_entropy
         
-        elif self.loss_fun_name == "CE":
+        elif "CE" in self.loss_fun_name:
             self.loss_fun = torch.nn.functional.cross_entropy#torch.nn.functional.cross_entropy
         
-        elif self.loss_fun_name == "MSE":
+        elif "MSE" in self.loss_fun_name:
             self.loss_fun = torch.nn.functional.mse_loss
         else:
             raise Exception("Loss function "+self.loss_fun_name+" is NYI.")
