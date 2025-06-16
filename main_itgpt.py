@@ -235,9 +235,8 @@ def main(args):
         trainer.test(ltrainer, dataloaders=val_dataloader)
         results["yclass"] = torch.cat(ltrainer.test_scores['yclass'])
         results["logits"] = torch.cat(ltrainer.test_scores['logits'])
-        results["ltrainer"] = ltrainer
-        
         ltrainer.test_scores = []
+        results["ltrainer"] = ltrainer
         write_pklz(outputfname, results)
         all_fold_results.append(results)
         

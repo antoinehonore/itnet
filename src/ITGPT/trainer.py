@@ -111,16 +111,25 @@ class lTrainer(L.LightningModule):
         self.model.itgpt.reset_running_slopes()
 
     def compute_loss(self, batch):
-        yclass = batch["targets_int"]
-        _, logits = self.model(batch)
+        loss = 0.
 
+        yclass = batch["targets_int"]
+        xhat, logits = self.model(batch)
+        if "gpt" in self.loss_fun_name:
+            normalized_batch = self.model.itgpt.normalized_batch
+            for m in normalized_batch.keys():
+                if m != "reference":
+                    loss += torch.nn.functional.mse_loss(xhat[m].data, normalized_batch[m].data)
+            
+            loss /= len(normalized_batch.keys())
+            
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
 
-        if self.loss_fun_name == "BCE":
+        if "BCE" in self.loss_fun_name:
             y_n = y
-        elif self.loss_fun_name == "CE":
+        elif "CE" in self.loss_fun_name:
             sample_weights =sample_weights[0,:,0]
             logits = logits[0]
             y_n = yclass.long()[0]
@@ -128,7 +137,7 @@ class lTrainer(L.LightningModule):
             logits = logits[0]
             y_n = y.squeeze(0)
         
-        loss = (self.loss_fun(logits, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
+        loss += (self.loss_fun(logits, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):

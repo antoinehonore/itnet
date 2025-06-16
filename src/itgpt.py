@@ -115,14 +115,18 @@ class ITGPT(torch.nn.Module):
     def reset_running_slopes(self):
         self.running_slopes = {m: [] for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
         self.training_slopes = {m: None for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
-
-    def forward(self, batch):
-        thedata = {m: TSdata(
+    
+    def normalize(self, batch):
+        self.normalized_batch = {m: TSdata(
                         self.apply_norm(m, batch), 
                         batch[m].timeline)
             if ((m!="reference") and (m!="specs")) else batch[m]#.clone()
             for m in batch.keys()
         }
+        return self.normalized_batch
+
+    def forward(self, batch):
+        thedata = self.normalize(batch)
         thedata = self.embedding(thedata)
         xhat, z = self.model(thedata)
         xhat = self.output_embedding(xhat)
@@ -194,13 +198,18 @@ class Predictor(torch.nn.Module):
         self.hparams = hparams
         self.itgpt = ITGPT(hparams)
     
-    def forward(self, batch):
+    def prep_data(self, batch):
         thefeatures = {}
-        thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])# batch["data"]["reference"]
+        thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])
+
         thefeatures = {
             **thefeatures,
-        **{m: TSdata(v[...,:-1].unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}
+            **{m: TSdata(v[...,:-1].unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}
         }
-        
+
+        return thefeatures
+
+    def forward(self, batch):
+        thefeatures = self.prep_data(batch)
         yhat, z = self.itgpt(thefeatures)
         return yhat, z
