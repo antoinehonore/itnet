@@ -147,9 +147,10 @@ class lTrainer(L.LightningModule):
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
-        logits = logits.to(torch.float)
-        yclass = yclass.long()
-
+        keep = yclass!=logits.shape[-1]
+        logits = logits[keep].to(torch.float)
+        yclass = yclass[keep].long()
+        
         y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
 
         yhat_sigmoid = torch.nn.functional.sigmoid(logits)
@@ -246,7 +247,7 @@ class lTrainer(L.LightningModule):
                     ax.cla()
                     plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                     self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
-        
+
         return scores
 
     def on_test_epoch_start(self):
