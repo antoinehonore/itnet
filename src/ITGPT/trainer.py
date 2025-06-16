@@ -213,7 +213,9 @@ class lTrainer(L.LightningModule):
         i = 0
         ax = self.train_recon_figure[1]
         ax.cla()
-        plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
+        keep=yclass!=logits.shape[-1]
+
+        plot_confusion_matrix(ax, yclass[keep].cpu(), logits[keep].argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
         if self.logger is not None:
             self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
         
