@@ -115,6 +115,8 @@ class lTrainer(L.LightningModule):
 
         yclass = batch["targets_int"]
         xhat, logits = self.model(batch)
+        #keep_samples = batch["targets_int"] != 5 if logits.shape[-1]==5 else batch["targets_int"] >= 0
+
         if "gpt" in self.loss_fun_name:
             normalized_batch = self.model.itgpt.normalized_batch
             for m in normalized_batch.keys():
@@ -125,7 +127,7 @@ class lTrainer(L.LightningModule):
                         loss += torch.nn.functional.mse_loss(xhat[m].data, normalized_batch[m].data)
 
             loss /= len(normalized_batch.keys())
-            
+        
         self.train_scores["yclass"].append(yclass.squeeze(0))
         self.train_scores["logits"].append(logits.detach().squeeze(0))
         sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
@@ -133,14 +135,15 @@ class lTrainer(L.LightningModule):
         if "BCE" in self.loss_fun_name:
             y_n = y
         elif "CE" in self.loss_fun_name:
-            sample_weights =sample_weights[0,:,0]
+            sample_weights = sample_weights[0,:,0]
             logits = logits[0]
             y_n = yclass.long()[0]
         else:
             logits = logits[0]
             y_n = y.squeeze(0)
         
-        loss += (self.loss_fun(logits, y_n, reduction="none")*sample_weights).mean()  ###.squeeze(-1).T.long())
+        keep = y_n != logits.shape[-1]
+        loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
@@ -211,9 +214,7 @@ class lTrainer(L.LightningModule):
         self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
         self.train_scores = self.init_dict()
 
-
     def on_validation_epoch_start(self):
-
         self.init_val_scores()
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -229,7 +230,6 @@ class lTrainer(L.LightningModule):
     def on_validation_epoch_end(self):
         for dataloader_idx in range(len(self.val_scores)):
             if len(self.val_scores[dataloader_idx]["yclass"])>0:
-                
                 logits = torch.cat(self.val_scores[dataloader_idx]["logits"]).squeeze(-1)
                 yclass = torch.cat(self.val_scores[dataloader_idx]["yclass"]).squeeze(-1)
                 suffix = "/val{}".format(dataloader_idx)
@@ -237,7 +237,7 @@ class lTrainer(L.LightningModule):
                 dict_xhat_var = {"xhat_var/"+k+suffix: v for k,v in dict_xhat_var.items()}
 
                 logits_var = logits.var(1).mean(0)
-                dict_xhat_var["logits_var"+suffix] = logits_var
+                dict_xhat_var["logits_var" + suffix] = logits_var
 
                 scores = self.get_scores(logits, yclass, suffix=suffix)
                 self.log_dict({**scores, **dict_xhat_var}, on_epoch=True, on_step=False)
@@ -246,7 +246,7 @@ class lTrainer(L.LightningModule):
                     ax.cla()
                     plot_confusion_matrix(ax, yclass.cpu(), logits.argmax(1).cpu(), normalize=dataloader_idx==0, num_classes=logits.shape[1], class_names=self.class_names)
                     self.logger.experiment.add_figure("recon_figure/val{}".format(dataloader_idx), self.val_recon_figure[dataloader_idx][0], self.the_training_step)
-
+        
         return scores
 
     def on_test_epoch_start(self):

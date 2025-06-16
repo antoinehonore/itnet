@@ -17,7 +17,7 @@ class TheDataset(Dataset):
 
         y = torch.cat([d["targets_int"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
         self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.arange(self.n_classes), y=y)).to(dtype=torch.float32) #/len(self.data.values())
-    
+        
     def __len__(self):
         return len(self.patids)
 
