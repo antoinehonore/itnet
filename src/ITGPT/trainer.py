@@ -119,7 +119,7 @@ class lTrainer(L.LightningModule):
             normalized_batch = self.model.itgpt.normalized_batch
             for m in normalized_batch.keys():
                 if m != "reference":
-                    loss += torch.nn.functional.mse_loss(xhat[m].data, normalized_batch[m].data)
+                    loss += torch.nn.functional.mse_loss(xhat[m].data[:,:,:-1,:], normalized_batch[m].data[:,:,1:,:])
             
             loss /= len(normalized_batch.keys())
             
