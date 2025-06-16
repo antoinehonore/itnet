@@ -155,7 +155,7 @@ class lTrainer(L.LightningModule):
         logits = logits[keep].to(torch.float)
         yclass = yclass[keep].long()
         
-        y = torch.eye(logits.shape[-1], device=logits.device)[yclass.long()]
+        y = torch.eye(logits.shape[-1], device=logits.device)[yclass]
 
         yhat_sigmoid = torch.nn.functional.sigmoid(logits)
         yhat_softmax = torch.nn.functional.softmax(logits, dim=-1)
