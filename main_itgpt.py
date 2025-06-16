@@ -188,12 +188,12 @@ def main(args):
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
-
+        
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
         if args.compile:
             model = torch.compile(model)
-
+        print(model)
         ltrainer = lTrainer(model=model, hparams=hparams)
         
         log_every_n_steps = len(train_dataloader)//100
@@ -232,7 +232,7 @@ def main(args):
         outputfname = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
-        trainer.test(ltrainer, dataloaders=val_dataloader)
+        trainer.test(ltrainer, dataloaders=val_internal_dataloader)
         results["yclass"] = torch.cat(ltrainer.test_scores['yclass'])
         results["logits"] = torch.cat(ltrainer.test_scores['logits'])
         ltrainer.test_scores = []

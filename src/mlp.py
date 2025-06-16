@@ -45,6 +45,9 @@ class MLP(torch.nn.Module):
     def __init__(self, input_size, layers_sizes, output_size, activation="relu", dropout_p=0, layernorm=False, skipconnections=False, skiptemperature=False,bias=True):
         super(MLP,self).__init__()
         all_params = dict(dropout_p=dropout_p, layernorm=layernorm, skipconnections=skipconnections, skiptemperature=skiptemperature, bias=bias)
+        self.input_size=input_size
+        self.output_size = output_size
+
         if len(layers_sizes)>0:
             layers_sizes = [input_size] + layers_sizes + [output_size]
 
@@ -55,8 +58,10 @@ class MLP(torch.nn.Module):
         else:
             self.layers = [torch.nn.Linear(input_size,output_size,bias=bias)]
         self.layers = torch.nn.Sequential(*self.layers)
-
+    
+    def __repr__(self):
+        return "MLP(d_in={}, n_layers={}, d_out={})".format(self.input_size, len(self.layers), self.output_size)
+    
     def forward(self, x):
         x = self.layers(x)
         return x
-

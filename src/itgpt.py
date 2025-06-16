@@ -29,8 +29,12 @@ class ItnetBlock(torch.nn.Module):
                     n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                     weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
                 )
-        
-    def forward(self, args, pool=None,only_last=True):
+
+    def __repr__(self):
+        return "Encoder({})".format(self.encodeMMA.__repr__()) + ("\nDecoder({})".format(self.decodeMMA.__repr__()) if self.decoder else "")
+
+
+    def forward(self, args, pool=None, only_last=True):
         """
         batch is a dictionnary : {"reference":  shape (1,1,T_1,d_1), "m1":  shape (1,1,T_2,d_2), ...}
         """
@@ -64,8 +68,12 @@ class ItnetBlock(torch.nn.Module):
 class Embedding(torch.nn.Module):
     def __init__(self, dimensions):
         super(Embedding, self).__init__()
+        self.dimensions=dimensions
         self.embedding_layers = torch.nn.ModuleDict({mname: torch.nn.Linear(dims[0], dims[1]) for mname,dims in dimensions.items()})
-    
+
+    def __repr__(self):
+        return "{}x Linear(...)".format(len(self.embedding_layers))
+
     def forward(self,batch):
         output = {mname: 
                 TSdata(self.embedding_layers[mname](batch[mname].data), batch[mname].timeline)
@@ -89,7 +97,9 @@ class ITGPT(torch.nn.Module):
         
         self.embedding = Embedding(input_dimensions)
         self.output_embedding = Embedding(output_dimensions)
+        
         self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"],hparams["d_out"])
+        
         # (d_in_q, d_in_kv, d_qk, d_out)
         blocks_dimensions = {mname: dict(in_q=D["in_q"], in_kv=input_dimensions[mname][1], out_qk=D["out_qk"], out_v=hparams["itnet_anchor_dim"]) 
                         for mname, D in hparams["modalities_dimension"].items()}
@@ -115,7 +125,7 @@ class ITGPT(torch.nn.Module):
     def reset_running_slopes(self):
         self.running_slopes = {m: [] for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
         self.training_slopes = {m: None for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
-    
+
     def normalize(self, batch):
         self.normalized_batch = {m: TSdata(
                         self.apply_norm(m, batch), 
@@ -124,7 +134,7 @@ class ITGPT(torch.nn.Module):
             for m in batch.keys()
         }
         return self.normalized_batch
-
+    
     def forward(self, batch):
         thedata = self.normalize(batch)
         thedata = self.embedding(thedata)
@@ -134,11 +144,11 @@ class ITGPT(torch.nn.Module):
         return xhat, z
 
     def apply_batchnorm(self,m,batch):
-        """Cheat in case T=1: use std=0"""
         if not (self.norm_funcs is None):
             X = batch[m].data
             xin = X
             if X.shape[2] == 1:
+                #Cheat in case T=1: use std=0
                 xin = X.expand(-1,-1, 2,-1)
             xout = self.norm_funcs[m](xin.transpose(1,3)).transpose(1,3)
             if X.shape[2] == 1:
@@ -150,12 +160,11 @@ class ITGPT(torch.nn.Module):
     def compute_slope(self, tsdata):
         """data is (N,H,T,d) and timeline is (N,T)"""
         dx = torch.diff(tsdata.data,dim=-2)
-        
         dt = torch.diff(tsdata.timeline,dim=-1).unsqueeze(1).unsqueeze(-1)
-        dt[dt==0]=torch.nan
-        slope =  (dx/dt).nanmean(-2,keepdim=True)
-        slope[slope==0]=1
 
+        dt[dt == 0] = torch.nan
+        slope =  (dx/dt).nanmean(-2,keepdim=True)
+        slope[slope == 0] = 1
         return slope
 
     def accumulate_slopes(self,m,tsdata):

@@ -25,10 +25,11 @@ class MultiModalAttention(torch.nn.Module):
         self.dimensions = dimensions
         self.feature_map_q = add_one
         self.qk_type = qk_type
-        D1 = list(self.dimensions.values())[0]
-        d_q_in, d_qk = D1["in_q"], D1["out_qk"]
-
+        self.D1 = list(self.dimensions.values())[0]
+        d_q_in, d_qk = self.D1["in_q"], self.D1["out_qk"]
+        self.d_q_in = d_q_in
         self.d_qk = d_qk
+
         self.W_Q = MLP(d_q_in,  [d_qk]*n_layers_qkv, d_qk, bias=bias, **kw_args_mlp)
 
         self.uni_modal_attention = torch.nn.ModuleDict({mname: UniModalAttention(d_q_in, D["in_kv"], D["out_qk"], D["out_v"], n_layers_qkv, qk_type,
@@ -46,6 +47,9 @@ class MultiModalAttention(torch.nn.Module):
             else:
                 self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()),
                                     output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
+    
+    def __repr__(self):
+        return "{}x UniModalAttention(Query/Keys={}, Values={})".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"])
 
     def forward(self, batch, mode="encode"):
         """
@@ -96,6 +100,9 @@ class UniModalAttention(torch.nn.Module):
         self.feature_map_k = partial(add_one, dim=0)
         self.qk_type = qk_type
         self.d_qk = d_qk
+        self.d_v = d_v
+        self.n_layers_qkv = n_layers_qkv
+
         self.weight_type = weight_type
         self.dropout = torch.nn.Dropout(kw_args_mlp["dropout_p"])
 
@@ -114,6 +121,9 @@ class UniModalAttention(torch.nn.Module):
         if "PE" in self.qk_type:
             self.position_encoding = PositionalEncoding(self.d_qk)
     
+    def __repr__(self):
+        return "UniModalAttention(Keys (d_qk={}), Values (d_v={}))".format(self.d_qk, self.d_v)
+
     def forward(self, data_q, data_kv):
         Q, q_timeline = data_q.data, data_q.timeline
 
