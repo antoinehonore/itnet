@@ -21,11 +21,10 @@ if __name__ == "__main__":
             results["yclass"] = results["yclass"].cpu()
             results["ltrainer"] = results["ltrainer"].cpu()
         else:
-            for r in results:
-                print(r["yclass"].device)
-                r["logits"] = r["logits"].cpu()
-                r["yclass"] = r["yclass"].cpu()
-                r["ltrainer"] = r["ltrainer"].cpu()
-                print(r["yclass"].device)
+            for i in range(len(results)):
+                results[i]["logits"] = results[i]["logits"].cpu()
+                results[i]["yclass"] = results[i]["yclass"].cpu()
+                results[i]["ltrainer"] = results[i]["ltrainer"].cpu()
+                
         write_pklz(fname+".cpu", results)
     sys.exit(0)
