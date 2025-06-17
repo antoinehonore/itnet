@@ -12,7 +12,7 @@ if __name__ == "__main__":
     root_dir = "."
     all_finished_fname = glob(os.path.join(root_dir, "lightning_logs/itgpt/**", s),recursive=True)
     print(all_finished_fname)
-    sys.exit(0)
+    #sys.exit(0)
     for fname in all_finished_fname:
         print(fname)
         results = read_pklz(fname)

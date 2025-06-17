@@ -243,7 +243,7 @@ def main(args):
         if debug:
             break
     
-    outputfname = os.path.join(log_dir, exp_name, "results.pklz")
+    outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
     write_pklz(outputfname, all_fold_results)
 
 
