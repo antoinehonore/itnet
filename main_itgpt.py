@@ -233,8 +233,8 @@ def main(args):
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
         trainer.test(ltrainer, dataloaders=val_internal_dataloader)
-        results["yclass"] = torch.cat(ltrainer.test_scores['yclass'])
-        results["logits"] = torch.cat(ltrainer.test_scores['logits'])
+        results["yclass"] = torch.cat(ltrainer.test_scores['yclass']).cpu()
+        results["logits"] = torch.cat(ltrainer.test_scores['logits']).cpu()
         ltrainer.test_scores = []
         results["ltrainer"] = ltrainer
         write_pklz(outputfname, results)
