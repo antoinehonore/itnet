@@ -19,13 +19,15 @@ if __name__ == "__main__":
         if isinstance(results, dict):
             results["logits"] = results["logits"].cpu()
             results["yclass"] = results["yclass"].cpu()
-            results["ltrainer"] = results["ltrainer"].cpu()
+            #results["ltrainer"] = results["ltrainer"].cpu()
+            results[i]["ltrainer"] = None
         else:
             for i in range(len(results)):
                 results[i]["logits"] = results[i]["logits"].cpu()
                 results[i]["yclass"] = results[i]["yclass"].cpu()
-                results[i]["ltrainer"].model.itgpt.normalized_batch=None
-                results[i]["ltrainer"] = results[i]["ltrainer"].cpu()
-
+                results[i]["ltrainer"] = None
+                #results[i]["ltrainer"].model.itgpt.normalized_batch = None
+                #results[i]["ltrainer"] = results[i]["ltrainer"].cpu()
+                #print()
         write_pklz(fname+".cpu", results)
     sys.exit(0)
