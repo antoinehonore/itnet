@@ -16,8 +16,12 @@ if __name__ == "__main__":
     for fname in all_finished_fname:
         print(fname)
         results = read_pklz(fname)
-        results["logits"] = results["logits"].cpu()
-        results["yclass"] = results["yclass"].cpu()
-        
-        write_pklz(fname.replace(".fold0", ".cpu.fold0"), results)
+        if isinstance(results, dict):
+            results["logits"] = results["logits"].cpu()
+            results["yclass"] = results["yclass"].cpu()
+        else:
+            for r in results:
+                r["logits"] = r["logits"].cpu()
+                r["yclass"] = r["yclass"].cpu()
+        write_pklz(fname+".cpu", results)
     sys.exit(0)
