@@ -22,9 +22,10 @@ if __name__ == "__main__":
             results["ltrainer"] = results["ltrainer"].cpu()
         else:
             for r in results:
+                print(r["yclass"].device)
                 r["logits"] = r["logits"].cpu()
                 r["yclass"] = r["yclass"].cpu()
                 r["ltrainer"] = r["ltrainer"].cpu()
-                print(r["fold_train_index"],r["ltrainer"],r["yclass"])
+                print(r["yclass"].device)
         write_pklz(fname+".cpu", results)
     sys.exit(0)
