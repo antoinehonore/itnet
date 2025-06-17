@@ -17,5 +17,6 @@ if __name__ == "__main__":
         results = read_pklz(fname)
         results["logits"] = results["logits"].cpu()
         results["yclass"] = results["yclass"].cpu()
-        sys.exit(0)
+        
         write_pklz(fname.replace(".fold0", ".cpu.fold0"), results)
+    sys.exit(0)
