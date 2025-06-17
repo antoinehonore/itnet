@@ -25,6 +25,6 @@ if __name__ == "__main__":
                 r["logits"] = r["logits"].cpu()
                 r["yclass"] = r["yclass"].cpu()
                 r["ltrainer"] = r["ltrainer"].cpu()
-
+                print(r["fold_train_index"],r["ltrainer"],r["yclass"])
         write_pklz(fname+".cpu", results)
     sys.exit(0)
