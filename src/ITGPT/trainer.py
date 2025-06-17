@@ -111,8 +111,8 @@ class lTrainer(L.LightningModule):
     def init_dict(self):
         return {"logits": [], "yclass":[], "xhat_var":[]}
     
-    def on_train_epoch_start(self,):
-        self.model.itgpt.reset_running_slopes()
+    #def on_train_epoch_start(self,):
+    #    self.model.itgpt.reset_running_slopes()
 
     def compute_loss(self, batch):
         loss = 0.

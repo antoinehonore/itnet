@@ -178,6 +178,7 @@ def main(args):
     #val_set =  TheDataset(valdata)
     #val_set.class_weights = class_weights
     #val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
+    outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
@@ -229,22 +230,22 @@ def main(args):
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
-        outputfname = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
+        #outputfname_fold = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
         trainer.test(ltrainer, dataloaders=val_internal_dataloader)
         results["yclass"] = torch.cat(ltrainer.test_scores['yclass']).cpu()
         results["logits"] = torch.cat(ltrainer.test_scores['logits']).cpu()
-        ltrainer.test_scores = []
-        results["ltrainer"] = ltrainer
-        write_pklz(outputfname, results)
+        #ltrainer.test_scores = []
+        #ltrainer.model.itgpt.normalized_batch = None
+        #results["ltrainer"] = ltrainer.cpu()
+        #write_pklz(outputfname_fold, results)
         all_fold_results.append(results)
         
         if debug:
             break
     
-    outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
-    write_pklz(outputfname, all_fold_results)
+        write_pklz(outputfname, all_fold_results)
 
 
 if __name__ == "__main__":
