@@ -2,7 +2,7 @@ from glob import glob
 from utils_tbox.utils_tbox import read_pklz, write_pklz, decompress_obj
 import argparse
 import sys
-
+import os 
 
 parser=argparse.ArgumentParser()
 parser.add_argument("-i", type=str, required=True)
