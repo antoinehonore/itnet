@@ -19,9 +19,12 @@ if __name__ == "__main__":
         if isinstance(results, dict):
             results["logits"] = results["logits"].cpu()
             results["yclass"] = results["yclass"].cpu()
+            results["ltrainer"] = results["ltrainer"].cpu()
         else:
             for r in results:
                 r["logits"] = r["logits"].cpu()
                 r["yclass"] = r["yclass"].cpu()
+                r["ltrainer"] = r["ltrainer"].cpu()
+
         write_pklz(fname+".cpu", results)
     sys.exit(0)
