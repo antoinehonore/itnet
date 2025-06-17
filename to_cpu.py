@@ -14,6 +14,7 @@ if __name__ == "__main__":
     print(all_finished_fname)
     
     for fname in all_finished_fname:
+        print(fname)
         results = read_pklz(fname)
         results["logits"] = results["logits"].cpu()
         results["yclass"] = results["yclass"].cpu()
