@@ -24,7 +24,8 @@ if __name__ == "__main__":
             for i in range(len(results)):
                 results[i]["logits"] = results[i]["logits"].cpu()
                 results[i]["yclass"] = results[i]["yclass"].cpu()
+                results[i]["ltrainer"].model.itgpt.normalized_batch=None
                 results[i]["ltrainer"] = results[i]["ltrainer"].cpu()
-                print(results[i]["ltrainer"].model.itgpt.normalized_batch["171_0"].data.device)
+
         write_pklz(fname+".cpu", results)
     sys.exit(0)
