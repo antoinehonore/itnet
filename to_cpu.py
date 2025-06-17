@@ -9,6 +9,7 @@ parser.add_argument("-i", type=str, required=True)
 if __name__ == "__main__":
     args=parser.parse_args()
     s = args.i#"*.pklz.fold0"
+    root_dir = "."
     all_finished_fname = glob(os.path.join(root_dir, "lightning_logs/itgpt/**", s),recursive=True)
     print(all_finished_fname)
     sys.exit(0)
