@@ -68,7 +68,7 @@ class ItnetBlock(torch.nn.Module):
 class Embedding(torch.nn.Module):
     def __init__(self, dimensions):
         super(Embedding, self).__init__()
-        self.dimensions=dimensions
+        self.dimensions = dimensions
         self.embedding_layers = torch.nn.ModuleDict({mname: torch.nn.Linear(dims[0], dims[1]) for mname,dims in dimensions.items()})
 
     def __repr__(self):

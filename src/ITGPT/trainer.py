@@ -105,6 +105,8 @@ class lTrainer(L.LightningModule):
         self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
         self.test_scores =  self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
         self.init_val_scores()
+        self.the_batch_size = 0
+
 
     def init_val_scores(self):
         self.val_scores =   [self.init_dict() for _ in range(2)]
@@ -117,14 +119,17 @@ class lTrainer(L.LightningModule):
 
     def compute_loss(self, batch):
         loss = 0.
-        use_label = random.uniform(0,1) < self.hparams["training"]["use_p_label"]
+        rnumber = random.uniform(0,1)
+        use_label = rnumber < self.hparams["training"]["use_p_label"]
         use_gpt = "gpt" in self.loss_fun_name
 
-        yclass = batch["targets_int"]
         if use_gpt or use_label:
             xhat, logits = self.model(batch)
-        else:
 
+            yclass = batch["targets_int"]
+            self.train_scores["yclass"].append(yclass.squeeze(0))
+            self.train_scores["logits"].append(logits.detach().squeeze(0))
+        
             if use_gpt:
                 normalized_batch = self.model.itgpt.normalized_batch
                 for m in normalized_batch.keys():
@@ -136,21 +141,20 @@ class lTrainer(L.LightningModule):
 
                 loss /= len(normalized_batch.keys())
             
-            self.train_scores["yclass"].append(yclass.squeeze(0))
-            self.train_scores["logits"].append(logits.detach().squeeze(0))
-            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
-
-            if "BCE" in self.loss_fun_name:
-                y_n = y
-            elif "CE" in self.loss_fun_name:
-                sample_weights = sample_weights[0,:,0]
-                logits = logits[0]
-                y_n = yclass.long()[0]
-            else:
-                logits = logits[0]
-                y_n = y.squeeze(0)
 
             if use_label:
+                sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
+
+                if "BCE" in self.loss_fun_name:
+                    y_n = y
+                elif "CE" in self.loss_fun_name:
+                    sample_weights = sample_weights[0,:,0]
+                    logits = logits[0]
+                    y_n = yclass.long()[0]
+                else:
+                    logits = logits[0]
+                    y_n = y.squeeze(0)
+
                 keep = y_n != logits.shape[-1]
                 loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
         return loss
@@ -193,17 +197,18 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         self.the_training_step += 1
         loss = self.compute_loss(batch)
-        if loss!=0:
+        if isinstance(loss,torch.Tensor):
+            self.the_batch_size += 1
             self.manual_backward(loss)
         
         self.running_loss += loss
 
-        if self.the_training_step % self.hparams["training"]["grad_step_every"]:
+        if self.the_batch_size == self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
             self.log("{}/train".format(self.loss_fun_name), self.running_loss, 
                 on_epoch=True, batch_size=self.hparams["training"]["grad_step_every"])
-
+            self.the_batch_size = 0
             self.running_loss = 0.
 
     
