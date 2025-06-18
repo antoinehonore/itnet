@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 import torchmetrics
+import random
 
 from torchmetrics.classification import BinaryStatScores
 from torchmetrics import ConfusionMatrix
@@ -116,38 +117,42 @@ class lTrainer(L.LightningModule):
 
     def compute_loss(self, batch):
         loss = 0.
+        use_label = random.uniform(0,1) < self.hparams["training"]["use_p_label"]
+        use_gpt = "gpt" in self.loss_fun_name
 
         yclass = batch["targets_int"]
-        xhat, logits = self.model(batch)
-        #keep_samples = batch["targets_int"] != 5 if logits.shape[-1]==5 else batch["targets_int"] >= 0
-
-        if "gpt" in self.loss_fun_name:
-            normalized_batch = self.model.itgpt.normalized_batch
-            for m in normalized_batch.keys():
-                if m != "reference":
-                    if m != "specs":
-                        loss += torch.nn.functional.mse_loss(xhat[m].data[:,:,:-1,:], normalized_batch[m].data[:,:,1:,:])
-                    else:
-                        loss += torch.nn.functional.mse_loss(xhat[m].data, normalized_batch[m].data)
-
-            loss /= len(normalized_batch.keys())
-        
-        self.train_scores["yclass"].append(yclass.squeeze(0))
-        self.train_scores["logits"].append(logits.detach().squeeze(0))
-        sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
-
-        if "BCE" in self.loss_fun_name:
-            y_n = y
-        elif "CE" in self.loss_fun_name:
-            sample_weights = sample_weights[0,:,0]
-            logits = logits[0]
-            y_n = yclass.long()[0]
+        if use_gpt or use_label:
+            xhat, logits = self.model(batch)
         else:
-            logits = logits[0]
-            y_n = y.squeeze(0)
-        
-        keep = y_n != logits.shape[-1]
-        loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
+
+            if use_gpt:
+                normalized_batch = self.model.itgpt.normalized_batch
+                for m in normalized_batch.keys():
+                    if m != "reference":
+                        if m != "specs":
+                            loss += torch.nn.functional.mse_loss(xhat[m].data[:,:,:-1,:], normalized_batch[m].data[:,:,1:,:])
+                        else:
+                            loss += torch.nn.functional.mse_loss(xhat[m].data, normalized_batch[m].data)
+
+                loss /= len(normalized_batch.keys())
+            
+            self.train_scores["yclass"].append(yclass.squeeze(0))
+            self.train_scores["logits"].append(logits.detach().squeeze(0))
+            sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
+
+            if "BCE" in self.loss_fun_name:
+                y_n = y
+            elif "CE" in self.loss_fun_name:
+                sample_weights = sample_weights[0,:,0]
+                logits = logits[0]
+                y_n = yclass.long()[0]
+            else:
+                logits = logits[0]
+                y_n = y.squeeze(0)
+
+            if use_label:
+                keep = y_n != logits.shape[-1]
+                loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
@@ -188,11 +193,9 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         self.the_training_step += 1
         loss = self.compute_loss(batch)
-        self.manual_backward(loss)
+        if loss!=0:
+            self.manual_backward(loss)
         
-        #if loss > 2:
-        #    print()
-
         self.running_loss += loss
 
         if self.the_training_step % self.hparams["training"]["grad_step_every"]:
@@ -206,21 +209,22 @@ class lTrainer(L.LightningModule):
     
     def on_train_epoch_end(self):
         #y = torch.cat(self.train_scores["y"]).squeeze(-1)
-        logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
-        yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
+        if len(self.train_scores["logits"])>0:
+            logits = torch.cat(self.train_scores["logits"]).squeeze(-1)
+            yclass = torch.cat(self.train_scores["yclass"]).squeeze(-1)
 
-        scores = self.get_scores(logits, yclass, suffix="/train")
-        i = 0
-        ax = self.train_recon_figure[1]
-        ax.cla()
-        keep=yclass!=logits.shape[-1]
+            scores = self.get_scores(logits, yclass, suffix="/train")
+            i = 0
+            ax = self.train_recon_figure[1]
+            ax.cla()
+            keep=yclass!=logits.shape[-1]
 
-        plot_confusion_matrix(ax, yclass[keep].cpu(), logits[keep].argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
-        if self.logger is not None:
-            self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
-        
-        self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
-        self.train_scores = self.init_dict()
+            plot_confusion_matrix(ax, yclass[keep].cpu(), logits[keep].argmax(1).cpu(), normalize=True, num_classes=logits.shape[-1], class_names=self.class_names)
+            if self.logger is not None:
+                self.logger.experiment.add_figure("recon_figure/train", self.train_recon_figure[0], self.the_training_step)
+            
+            self.log_dict(scores, on_epoch=True,on_step=False,batch_size=1)
+            self.train_scores = self.init_dict()
 
     def on_validation_epoch_start(self):
         self.init_val_scores()
