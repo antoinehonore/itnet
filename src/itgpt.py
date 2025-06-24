@@ -187,11 +187,6 @@ class ITGPT(torch.nn.Module):
         return TSdata(corrected_data, tsdata.timeline)
 
     def apply_norm(self, m, batch):
-        #if self.training:
-        #    self.accumulate_slopes(m, batch[m])
-        #else:
-        #    batch[m] = self.correct_slopes(m, batch[m])
-
         if self.normalization == "batch":
             return self.apply_batchnorm(m, batch)
         elif self.normalization == "log":
