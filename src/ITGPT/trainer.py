@@ -209,12 +209,12 @@ class lTrainer(L.LightningModule):
         self.the_training_step += 1
         loss = self.compute_loss(batch)
         if isinstance(loss,torch.Tensor):
-            self.the_batch_size += 1
+            self.the_batch_size += self.hparams["data"]["batch_size"]
             self.manual_backward(loss)
         
         self.running_loss += loss
 
-        if self.the_batch_size == self.hparams["training"]["grad_step_every"]:
+        if self.the_batch_size >= self.hparams["training"]["grad_step_every"]:
             opt.step()
             opt.zero_grad()
             self.log("{}/train".format(self.loss_fun_name), self.running_loss, 
