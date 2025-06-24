@@ -283,8 +283,8 @@ class lTrainer(L.LightningModule):
 
     def test_step(self,batch,batch_idx, dataloader_idx=0):
         _, logits = self.model(batch)
-        if "targets_int" in batch.keys():
-            self.test_scores["yclass"].append(batch["targets_int"].squeeze(0))
+        if "label" in batch.keys():
+            self.test_scores["yclass"].append(batch["label"].squeeze(0))
 
         self.test_scores["logits"].append(logits.squeeze(0))
         
