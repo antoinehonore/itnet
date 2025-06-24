@@ -164,7 +164,7 @@ class lTrainer(L.LightningModule):
                 # In case the training is with fewer classes
                 keep = y_n != logits.shape[-1]
 
-                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0])[use_label].to(device=keep.device))
+                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0],device=use_label.device)[use_label].to(device=keep.device))
 
                 keep*=use_sample
                 loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
