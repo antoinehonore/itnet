@@ -124,7 +124,7 @@ class lTrainer(L.LightningModule):
             use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
         elif ("ignore_labels" in self.loss_fun_name):
-            use_label = torch.isin(batch["vid"],self.use_labels_vids)
+            use_label = torch.isin(batch["vid"],self.use_labels_vids.to(device=batch["vid"].device))
             use_gpt   = True
         else:
             use_label = torch.ones(batch["vid"].shape[0],dtype=bool)#True
