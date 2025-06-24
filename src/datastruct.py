@@ -8,5 +8,11 @@ class TSdata:
         self.idx = idx
         #self.tg_data = Data(x=data, edge_index=get_ts_edge_index(data.shape[0]),edge_attr=timeline)
         self.timeline = timeline
+        
     def clone(self):
         return TSdata(self.data.clone(), self.timeline.clone(), self.idx.clone())
+    
+    def to(self,device):
+        self.data = self.data.to(device)
+        self.timeline = self.timeline.to(device)
+        self.idx = self.idx.to(device)
