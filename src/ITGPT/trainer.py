@@ -127,12 +127,12 @@ class lTrainer(L.LightningModule):
             use_label = torch.isin(batch["vid"],self.use_labels_vids.to(device=batch["vid"].device))
             use_gpt   = True
         else:
-            use_label = torch.ones(batch["vid"].shape[0],dtype=bool)#True
+            use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
             use_gpt = False
         
         if use_gpt or use_label.any():
             xhat, logits = self.model(batch)
-
+            
             yclass = batch["label"]
             self.train_scores["yclass"].append(yclass.squeeze(0))
             self.train_scores["logits"].append(logits.detach().squeeze(0))
