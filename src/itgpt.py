@@ -47,23 +47,22 @@ class ItnetBlock(torch.nn.Module):
         else:
             raise Exception("len(args)={} should be 1 or 2.".format(len(args)))
 
-        the_decoder_input = {m: TSdata(batch[m].timeline.unsqueeze(0).unsqueeze(-1), batch[m].timeline) for m in batch.keys() if m!= "reference"}
+        the_decoder_input = {m: TSdata(batch[m].timeline.unsqueeze(0).unsqueeze(-1), batch[m].timeline, batch[m].idx) for m in batch.keys() if m!= "reference"}
         
-        the_encoded_data = self.encodeMMA(batch)
+        anchor_data = self.encodeMMA(batch)
         
         if self.decoder:
             if self.hparams["itnet_skipconnections"]:
-                the_encoded_data = self.activation_function(the_encoded_data) + previous_encoded_data 
+                anchor_data = self.activation_function(anchor_data) + previous_encoded_data 
         
-            #the_encoded_data = the_encoded_data
-            the_decoder_input["reference"] = TSdata(the_encoded_data.unsqueeze(1), batch["reference"].timeline)
+            the_decoder_input["reference"] = TSdata(anchor_data.unsqueeze(1), batch["reference"].timeline)
             
             yhat = self.decodeMMA(the_decoder_input, mode="decode")
             yhat = {m: TSdata(yhat[m], batch[m].timeline) for m in yhat.keys()}
             yhat["reference"] = batch["reference"] 
         else:
             yhat = batch
-        return yhat, the_encoded_data
+        return yhat, anchor_data
 
 class Embedding(torch.nn.Module):
     def __init__(self, dimensions):
@@ -76,7 +75,7 @@ class Embedding(torch.nn.Module):
 
     def forward(self,batch):
         output = {mname: 
-                TSdata(self.embedding_layers[mname](batch[mname].data), batch[mname].timeline)
+                TSdata(self.embedding_layers[mname](batch[mname].data), batch[mname].timeline, batch[mname].idx)
                 for mname in self.embedding_layers.keys()
                 }
         output["reference"] = batch["reference"]
@@ -129,7 +128,8 @@ class ITGPT(torch.nn.Module):
     def normalize(self, batch):
         self.normalized_batch = {m: TSdata(
                         self.apply_norm(m, batch), 
-                        batch[m].timeline)
+                        batch[m].timeline,
+                        batch[m].idx)
             if ((m!="reference") and (m!="specs")) else batch[m]#.clone()
             for m in batch.keys()
         }
@@ -208,16 +208,8 @@ class Predictor(torch.nn.Module):
         self.itgpt = ITGPT(hparams)
     
     def prep_data(self, batch):
-        thefeatures = {}
-        thefeatures["reference"] = TSdata(batch["data"]["reference"].T.unsqueeze(0).unsqueeze(0), batch["data"]["reference"])
-
-        thefeatures = {
-            **thefeatures,
-            **{m: TSdata(v[...,:-1].unsqueeze(1), v[..., -1]) for m,v in batch["data"].items() if (m!="reference")}
-        }
-
-        return thefeatures
-
+        return batch["data"]
+    
     def forward(self, batch):
         thefeatures = self.prep_data(batch)
         yhat, z = self.itgpt(thefeatures)

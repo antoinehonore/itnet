@@ -25,9 +25,19 @@ class TheDataset(Dataset):
         thedata = self.data[self.vids[idx]]
         thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
         thedata["vid"] = self.vids[idx]
+        thedata["data"]["reference"] = thedata["data"]["reference"].reshape(-1,1)
         return thedata
 
-#Includes
+import torch_geometric as tg
+from torch_geometric.data import Data
+
+def get_ts_edge_index(N, device="cpu"):
+    tmp = torch.arange(N-1,device=device,dtype=torch.long).reshape(1,-1)
+    edge_index = torch.cat([tmp,tmp+1])
+    return edge_index
+
+
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plot_confusion_matrix

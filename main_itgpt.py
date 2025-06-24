@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
 from src.compx.mydata import TheDataset, get_data
+
 from src.ITGPT.trainer import lTrainer
 import os 
 import socket
@@ -108,6 +109,30 @@ def inference_code(fname_ckpt,val_set):
 #fname_ckpt = os.path.join(os.path.dirname(fname), "version_1","checkpoints","last.ckpt")
 #inference_code(fname_ckpt,val_set)
 
+def my_collate(batch):
+    # Separate data and labels
+    all_modalities = list(batch[0]["data"].keys())
+    data = {m: cat_modalities(m,[item['data'][m] for item in batch]) for m in all_modalities}
+
+    #labels = cat_modalities("reference", [item['targets_int'] for item in batch])
+    vids = torch.tensor([item['vid'] for item in batch])
+    # Pad the sequences (assuming 'data' is a sequence)
+    #padded_data = pad_sequence(data, batch_first=True) # Important: batch_first!
+
+    # Convert labels to tensor (if needed)
+    labels = torch.cat([item['targets_int'] for item in batch]).unsqueeze(0)
+
+    return {'data': data, 'label': labels, "class_weights":batch[0]["class_weights"], "vid":vids}
+
+def cat_modalities(m,batches):
+    idx = torch.cat([torch.ones(t.shape[0])*i for i,t in enumerate(batches)])#.reshape(-1,1)
+    data = torch.cat(batches)
+    if m == "reference":
+        data = data.reshape(-1,1)
+    data = TSdata(data[...,:-1].unsqueeze(0).unsqueeze(0), data[...,-1].unsqueeze(0), idx)
+    return data
+
+
 def main(args):
     cfg_fname = args.i
     output_fname = args.o
@@ -183,11 +208,11 @@ def main(args):
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
         val_set_internal = Subset(dataset, fold_val_index)
-        
-        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
-        val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
+        ###my_collate = None
+        train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, collate_fn=my_collate,**loaders_kwargs)
+        val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False, collate_fn=my_collate, **loaders_kwargs)
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
-        
+
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -235,8 +260,6 @@ def main(args):
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
-        #outputfname_fold = os.path.join(log_dir, exp_name_, "results.pklz.fold{}".format(fold_idx))
-        
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
         trainer.test(ltrainer, dataloaders=val_internal_dataloader)
         results["yclass"] = torch.cat(ltrainer.test_scores['yclass']).cpu()
@@ -251,7 +274,6 @@ def main(args):
             break
     
         write_pklz(outputfname, all_fold_results)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
