@@ -88,7 +88,7 @@ class MultiModalAttention(torch.nn.Module):
 
         else:
            raise Exception("Unknown qk_type={}".format(self.qk_type))
-        return TSdata(Q, timeline)
+        return TSdata(Q, timeline, data_q.idx)
 
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
@@ -125,11 +125,11 @@ class UniModalAttention(torch.nn.Module):
         return "UniModalAttention(Keys (d_qk={}), Values (d_v={}))".format(self.d_qk, self.d_v)
 
     def forward(self, data_q, data_kv):
-        Q, q_timeline = data_q.data, data_q.timeline
+        Q, q_timeline, q_idx = data_q.data, data_q.timeline, data_q.idx
 
         K, V, kv_timeline = self.compute_KV(data_kv)
 
-        out = self.causal_attn_func(Q, K, V, q_timeline, kv_timeline)
+        out = self.causal_attn_func(Q, K, V, q_timeline, kv_timeline, q_idx=q_idx, kv_idx=data_kv.idx)
         
         if out.isnan().any():
             raise Exception("{} contains NANs !!!".format(self.name))
@@ -167,10 +167,10 @@ class UniModalAttention(torch.nn.Module):
         self.attn_matrices = torch.zeros(1,1,2,2)
         return y
 
-    def causal_scaled_dot_product_attention(self, Q, K, V, t1, t2,  eps=1e-6):
+    def causal_scaled_dot_product_attention(self, Q, K, V, q_t, kv_t, q_idx=None, kv_idx=None, eps=1e-6):
         tau = self.history_temperature.exp()
         
-        A = self.get_weights(Q, K, t1, t2, tau=tau)
+        A = self.get_weights(Q, K, q_t, kv_t, q_idx=q_idx, kv_idx=kv_idx, tau=tau)
         #remove_idx = A.isnan().sum(-1) == A.shape[-1]
         #if remove_idx.any():
         #    print("")
@@ -181,7 +181,7 @@ class UniModalAttention(torch.nn.Module):
         y = torch.einsum('nhtl,nhlc->nhtc', self.dropout(A), V)
         return y
     
-    def get_weights(self, Q, K, t1, t2, tau = 1):
+    def get_weights(self, Q, K, q_t, kv_t, q_idx=None, kv_idx=None, tau = 1):
         N, H, T, C = Q.shape
         _, _, L, _ = K.shape
 
@@ -201,6 +201,19 @@ class UniModalAttention(torch.nn.Module):
         else:
             raise Exception("Unknown weight_type="+self.weight_type)
         
-        mask = t1.unsqueeze(-1) >= t2.unsqueeze(1)
-        self.A = (self.A* mask).softmax(-1) *mask
+        attn_mask = q_t.unsqueeze(-1) >= kv_t.unsqueeze(1)
+        mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
+        attn_mask = attn_mask * mask_batch
+        attn_mask=attn_mask.to(torch.float)
+        #mask.all(dim=-1)
+
+        attn_mask[attn_mask==0]=-torch.inf
+        attn_mask[attn_mask==1]=0
+
+        fully_masked = attn_mask.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
+        if fully_masked.any():
+            print("")
+        # Replace fully-masked rows with zeros (won’t affect output after masking)
+        safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
+        self.A = (self.A +safe_mask).softmax(-1)# *mask
         return self.A

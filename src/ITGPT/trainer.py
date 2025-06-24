@@ -60,7 +60,7 @@ class lTrainer(L.LightningModule):
         self.val_recon_figure       = [plt.subplots(figsize=(5,4)) for _ in range(2)]
         self.val_senspec_figure     = plt.subplots(2,1,figsize=(12,6))
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
-
+        
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
         self.automatic_optimization = False
         self.the_training_step  = 0
@@ -124,16 +124,16 @@ class lTrainer(L.LightningModule):
             use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
         elif ("ignore_labels" in self.loss_fun_name):
-            use_label = batch["vid"].item() in self.use_labels_vids
+            use_label = torch.isin(batch["vid"],self.use_labels_vids)
             use_gpt   = True
         else:
-            use_label = True
+            use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=logits.device)#True
             use_gpt = False
         
-        if use_gpt or use_label:
+        if use_gpt or use_label.any():
             xhat, logits = self.model(batch)
 
-            yclass = batch["targets_int"]
+            yclass = batch["label"]
             self.train_scores["yclass"].append(yclass.squeeze(0))
             self.train_scores["logits"].append(logits.detach().squeeze(0))
 
@@ -148,8 +148,8 @@ class lTrainer(L.LightningModule):
 
                 loss /= len(normalized_batch.keys())
             
-            if use_label:
-                sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
+            if use_label.any():
+                sample_weights = batch["class_weights"][yclass.long()].unsqueeze(-1)
 
                 if "BCE" in self.loss_fun_name:
                     y_n = y
@@ -161,7 +161,12 @@ class lTrainer(L.LightningModule):
                     logits = logits[0]
                     y_n = y.squeeze(0)
 
+                # In case the training is with fewer classes
                 keep = y_n != logits.shape[-1]
+
+                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0])[use_label])
+                
+                keep*=use_sample
                 loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
         return loss
     
@@ -241,8 +246,8 @@ class lTrainer(L.LightningModule):
         self.init_val_scores()
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        yclass = batch["targets_int"]
-        max_values = {k: (v[...,:-2]+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
+        yclass = batch["label"]
+        max_values = {k: (v.data+1).log().var().item() for k,v in batch["data"].items() if (k!= "specs") and (k!="reference")}
         xhat, logits = self.model(batch)
         xhat_var = {k: v.data.var(-1).mean(-1).item() for k,v in xhat.items() if (k!= "specs") and (k!="reference")}
 
