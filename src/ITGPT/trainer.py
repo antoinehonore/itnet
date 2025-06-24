@@ -119,16 +119,24 @@ class lTrainer(L.LightningModule):
     def compute_loss(self, batch):
         loss = 0.
         ###  rnumber = random.uniform(0,1)
-        use_label = self.current_epoch/self.hparams["training"]["n_epochs"] >= self.hparams["training"]["use_p_label"] if ("gpt" in self.loss_fun_name) else True   #"targets_int" in batch.keys() #rnumber <= self.hparams["training"]["use_p_label"]
-        use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"] < self.hparams["training"]["use_p_label"]) if ("gpt" in self.loss_fun_name) else False
+        if ("gpt" in self.loss_fun_name):
+            use_label = (self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"]
+            use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
+        elif ("ignore_labels" in self.loss_fun_name):
+            use_label = batch["vid"].item() in self.use_labels_vids
+            use_gpt   = True
+        else:
+            use_label = True
+            use_gpt = False
+        
         if use_gpt or use_label:
             xhat, logits = self.model(batch)
 
             yclass = batch["targets_int"]
             self.train_scores["yclass"].append(yclass.squeeze(0))
             self.train_scores["logits"].append(logits.detach().squeeze(0))
-        
+
             if use_gpt:
                 normalized_batch = self.model.itgpt.normalized_batch
                 for m in normalized_batch.keys():
@@ -140,7 +148,6 @@ class lTrainer(L.LightningModule):
 
                 loss /= len(normalized_batch.keys())
             
-
             if use_label:
                 sample_weights = batch["class_weights"][0][yclass.long()].unsqueeze(-1)
 
