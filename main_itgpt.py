@@ -63,11 +63,11 @@ def patient_timesplit(patid, d, n_splits=5):
     return out_tr, out_val
 
 def get_tr_val_index_lists(dataset, k=5):
-    patids = np.array(dataset.patids)
+    vids = np.array(dataset.vids)
     if k>0:
-        tr_val_index_lists = KFold(k, shuffle=True).split(patids)
+        tr_val_index_lists = KFold(k, shuffle=True).split(vids)
     else:
-        tr_val_index_lists = [[np.arange(len(patids)),np.zeros(0)]]
+        tr_val_index_lists = [[np.arange(len(vids)),np.zeros(0)]]
 
     return tr_val_index_lists
 
@@ -187,7 +187,7 @@ def main(args):
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True,**loaders_kwargs)
         val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
-
+        
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
         
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
@@ -197,6 +197,11 @@ def main(args):
         print(model)
         ltrainer = lTrainer(model=model, hparams=hparams)
         
+        all_tr_vids = torch.tensor([batch["vid"] for batch in training_set])
+        all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
+        n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
+        ltrainer.use_labels_vids = all_tr_vids[:n_labels]
+
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
         profiler = get_profiler(args.profiler)
