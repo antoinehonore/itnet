@@ -102,11 +102,10 @@ class lTrainer(L.LightningModule):
         #    normalization = {k:{"mu": var_data.mean(0).reshape(1,-1),"sigma":var_data.std(0).reshape(1,-1)} for k,var_data in all_data.items()}
         #    return normalization
 
-        self.train_scores = self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
-        self.test_scores =  self.init_dict()#{"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.train_scores = self.init_dict()   #  {"y": [],   "logits": [], "yclass":[], "norms": []}
+        self.test_scores =  self.init_dict()   #  {"y": [],   "logits": [], "yclass":[], "norms": []}
         self.init_val_scores()
         self.the_batch_size = 0
-
 
     def init_val_scores(self):
         self.val_scores =   [self.init_dict() for _ in range(2)]
@@ -119,9 +118,9 @@ class lTrainer(L.LightningModule):
 
     def compute_loss(self, batch):
         loss = 0.
-        rnumber = random.uniform(0,1)
-        use_label = rnumber < self.hparams["training"]["use_p_label"]
-        use_gpt = "gpt" in self.loss_fun_name
+        ###  rnumber = random.uniform(0,1)
+        use_label = self.current_epoch/self.hparams["training"]["n_epochs"] >= self.hparams["training"]["use_p_label"] if ("gpt" in self.loss_fun_name) else True   #"targets_int" in batch.keys() #rnumber <= self.hparams["training"]["use_p_label"]
+        use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"] < self.hparams["training"]["use_p_label"]) if ("gpt" in self.loss_fun_name) else False
 
         if use_gpt or use_label:
             xhat, logits = self.model(batch)
