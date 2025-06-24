@@ -127,7 +127,7 @@ class lTrainer(L.LightningModule):
             use_label = torch.isin(batch["vid"],self.use_labels_vids)
             use_gpt   = True
         else:
-            use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=logits.device)#True
+            use_label = torch.ones(batch["vid"].shape[0],dtype=bool)#True
             use_gpt = False
         
         if use_gpt or use_label.any():
@@ -164,8 +164,8 @@ class lTrainer(L.LightningModule):
                 # In case the training is with fewer classes
                 keep = y_n != logits.shape[-1]
 
-                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0])[use_label])
-                
+                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0])[use_label].to(device=keep.device))
+
                 keep*=use_sample
                 loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
         return loss
