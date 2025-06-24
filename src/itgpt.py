@@ -55,10 +55,10 @@ class ItnetBlock(torch.nn.Module):
             if self.hparams["itnet_skipconnections"]:
                 anchor_data = self.activation_function(anchor_data) + previous_encoded_data 
         
-            the_decoder_input["reference"] = TSdata(anchor_data.unsqueeze(1), batch["reference"].timeline)
+            the_decoder_input["reference"] = TSdata(anchor_data.unsqueeze(1), batch["reference"].timeline,batch["reference"].idx)
             
             yhat = self.decodeMMA(the_decoder_input, mode="decode")
-            yhat = {m: TSdata(yhat[m], batch[m].timeline) for m in yhat.keys()}
+            yhat = {m: TSdata(yhat[m], batch[m].timeline,batch[m].idx) for m in yhat.keys()}
             yhat["reference"] = batch["reference"] 
         else:
             yhat = batch
