@@ -28,15 +28,10 @@ class TheDataset(Dataset):
         thedata["data"]["reference"] = thedata["data"]["reference"].reshape(-1,1)
         return thedata
 
-import torch_geometric as tg
-from torch_geometric.data import Data
-
 def get_ts_edge_index(N, device="cpu"):
     tmp = torch.arange(N-1,device=device,dtype=torch.long).reshape(1,-1)
     edge_index = torch.cat([tmp,tmp+1])
     return edge_index
-
-
 
 import pandas as pd
 import numpy as np
