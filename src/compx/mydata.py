@@ -21,8 +21,8 @@ class TheDataset(Dataset):
     def __len__(self):
         return len(self.patids)
 
-    def __getitem__(self, i):
-        thedata = self.data[self.patids[i]]
+    def __getitem__(self, idx):
+        thedata = self.data[self.patids[idx]]
         thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
         #thedata["data"]={k:v for k,v in thedata["data"].items() if (k != "specs")}
         return thedata
