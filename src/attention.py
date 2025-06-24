@@ -211,8 +211,7 @@ class UniModalAttention(torch.nn.Module):
         attn_mask[attn_mask==1]=0
 
         fully_masked = attn_mask.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
-        if fully_masked.any():
-            print("")
+        
         # Replace fully-masked rows with zeros (won’t affect output after masking)
         safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
         self.A = (self.A +safe_mask).softmax(-1)# *mask
