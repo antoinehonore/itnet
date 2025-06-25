@@ -106,7 +106,6 @@ def inference_code(fname_ckpt,val_set):
     plot_confusion_matrix(ax, yclass, logits.argmax(-1), num_classes=logits.shape[1])
 
 def check_model():
-
     if False:
         n1=2
         n2=2
@@ -236,6 +235,13 @@ def main(args):
         
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
+        
+        def initialize_all_parameters_to_zero(model: nn.Module):
+            for param in model.parameters():
+                nn.init.constant_(param, 0)
+        
+        initialize_all_parameters_to_zero(model)
+
         if args.compile:
             model = torch.compile(model)
         print(model)
