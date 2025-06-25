@@ -198,6 +198,9 @@ class UniModalAttention(torch.nn.Module):
 
         elif self.weight_type == "vanilla":
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
+
+        elif self.weight_type == "relu":
+            self.A = torch.einsum('nhtc,nhlc->nhtl', torch.nn.functional.relu(Q), torch.nn.functional.relu(K)) / math.sqrt(K.shape[-1])
         else:
             raise Exception("Unknown weight_type="+self.weight_type)
 
@@ -205,7 +208,7 @@ class UniModalAttention(torch.nn.Module):
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
         attn_mask = attn_mask * mask_batch
         
-        if True:
+        if True: # The right way
             attn_mask = attn_mask.to(torch.float)
             attn_mask[attn_mask==0]=-torch.inf
             attn_mask[attn_mask==1]=0
@@ -215,6 +218,11 @@ class UniModalAttention(torch.nn.Module):
             # Replace fully-masked rows with zeros (won’t affect output after masking)
             safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
             self.A = (self.A +safe_mask).softmax(-1) * (1-fully_masked.to(safe_mask.dtype))#mask
-        else:
-            self.A = (self.A *attn_mask).softmax(-1) *attn_mask
+
+        else: # the wrong way that works way better
+            safe_mask = attn_mask.to(torch.float)
+            safe_mask[attn_mask == 0] = -torch.inf
+            safe_mask[attn_mask == 1] = 0
+
+            self.A = (self.A *attn_mask).softmax(-1)*attn_mask
         return self.A
