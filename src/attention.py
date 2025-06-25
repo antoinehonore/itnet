@@ -204,8 +204,7 @@ class UniModalAttention(torch.nn.Module):
         attn_mask = q_t.unsqueeze(-1) >= kv_t.unsqueeze(1)
         #if attn_mask.shape[-2] != kv_t.shape[-1]:
         #    print("")
-
-
+        
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
         attn_mask = attn_mask * mask_batch
         if True:
