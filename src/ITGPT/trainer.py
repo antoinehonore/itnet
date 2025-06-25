@@ -62,7 +62,7 @@ class lTrainer(L.LightningModule):
         self.train_senspec_figure   = plt.subplots(figsize=(5,3))
         
         self.val_attn_matrix        = None  #{k:plt.subplots(figsize=(10,6)) for k in model.fusion_model.estimate_fusion.attn_matrices.keys()}
-        self.automatic_optimization = False
+        #self.automatic_optimization = False
         self.the_training_step  = 0
         self.model = model
 
@@ -216,22 +216,24 @@ class lTrainer(L.LightningModule):
 
     def training_step(self, batch, batch_idx, dataloader_idx=0):
         opt = self.optimizers()
-        self.the_training_step += 1
-        loss = self.compute_loss(batch)
-        if isinstance(loss, torch.Tensor):
-            self.the_batch_size += self.hparams["data"]["batch_size"]
-            self.manual_backward(loss)
         
-        self.running_loss += loss
+        loss = self.compute_loss(batch)
+        #if isinstance(loss, torch.Tensor):
+        #    self.the_batch_size += self.hparams["data"]["batch_size"]
+        #    self.manual_backward(loss)
+        
+        #self.running_loss += loss
 
-        if self.the_batch_size >= self.hparams["training"]["grad_step_every"]:
-            opt.step()
-            opt.zero_grad()
-            self.log("{}/train".format(self.loss_fun_name), self.running_loss, 
-                on_epoch=True, batch_size=self.hparams["training"]["grad_step_every"])
-            self.the_batch_size = 0
-            self.running_loss = 0.
-    
+        #if self.the_batch_size >= self.hparams["training"]["grad_step_every"]:
+        #opt.step()
+        #opt.zero_grad()
+        self.the_training_step += 1
+        self.log("{}/train".format(self.loss_fun_name), loss, 
+            on_epoch=True, batch_size=self.hparams["data"]["batch_size"])
+        #self.the_batch_size = 0
+        #self.running_loss = 0.
+        return loss
+        
     def on_train_epoch_end(self):
         #y = torch.cat(self.train_scores["y"]).squeeze(-1)
         if len(self.train_scores["logits"])>0:
