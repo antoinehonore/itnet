@@ -200,19 +200,24 @@ class UniModalAttention(torch.nn.Module):
             self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
         else:
             raise Exception("Unknown weight_type="+self.weight_type)
-        
+
         attn_mask = q_t.unsqueeze(-1) >= kv_t.unsqueeze(1)
+        #if attn_mask.shape[-2] != kv_t.shape[-1]:
+        #    print("")
+
+
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
         attn_mask = attn_mask * mask_batch
-        if False:
+        if True:
             attn_mask = attn_mask.to(torch.float)
             attn_mask[attn_mask==0]=-torch.inf
             attn_mask[attn_mask==1]=0
 
             fully_masked = attn_mask.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
+            
             # Replace fully-masked rows with zeros (won’t affect output after masking)
             safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
             self.A = (self.A +safe_mask).softmax(-1) * (1-fully_masked.to(safe_mask.dtype))#mask
         else:
-            self.A = (self.A* attn_mask).softmax(-1) *attn_mask
+            self.A = (self.A *attn_mask).softmax(-1) *attn_mask
         return self.A
