@@ -207,7 +207,7 @@ class UniModalAttention(torch.nn.Module):
         
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
         attn_mask = attn_mask * mask_batch
-        if True:
+        if False:
             attn_mask = attn_mask.to(torch.float)
             attn_mask[attn_mask==0]=-torch.inf
             attn_mask[attn_mask==1]=0
