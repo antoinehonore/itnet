@@ -120,7 +120,7 @@ class lTrainer(L.LightningModule):
         loss = 0.
         ###  rnumber = random.uniform(0,1)
         if ("gpt" in self.loss_fun_name):
-            use_label = (self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"]
+            use_label = torch.tensor((self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"])
             use_gpt   = True#(self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
         elif ("ignore_labels" in self.loss_fun_name):
