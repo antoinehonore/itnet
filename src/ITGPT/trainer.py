@@ -137,7 +137,6 @@ class lTrainer(L.LightningModule):
         
         if use_gpt or use_label.any():
             xhat, logits = self.model(batch)
-
             if use_gpt:
                 normalized_batch = self.model.itgpt.normalized_batch
                 for m in normalized_batch.keys():
@@ -177,7 +176,7 @@ class lTrainer(L.LightningModule):
 
 
                 self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
-                self.train_scores["logits"].append(logits.detach().squeeze(0)[keep])
+                self.train_scores["logits"].append(logits.detach()[keep])
 
         return loss
     
@@ -219,7 +218,7 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         self.the_training_step += 1
         loss = self.compute_loss(batch)
-        if isinstance(loss,torch.Tensor):
+        if isinstance(loss, torch.Tensor):
             self.the_batch_size += self.hparams["data"]["batch_size"]
             self.manual_backward(loss)
         
@@ -232,7 +231,6 @@ class lTrainer(L.LightningModule):
                 on_epoch=True, batch_size=self.hparams["training"]["grad_step_every"])
             self.the_batch_size = 0
             self.running_loss = 0.
-
     
     def on_train_epoch_end(self):
         #y = torch.cat(self.train_scores["y"]).squeeze(-1)
