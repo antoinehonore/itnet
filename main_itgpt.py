@@ -105,10 +105,34 @@ def inference_code(fname_ckpt,val_set):
     fig, ax = plt.subplots()
     plot_confusion_matrix(ax, yclass, logits.argmax(-1), num_classes=logits.shape[1])
 
+def check_model():
 
-#fname_ckpt = os.path.join(os.path.dirname(fname), "version_1","checkpoints","last.ckpt")
-#inference_code(fname_ckpt,val_set)
+    if False:
+        n1=2
+        n2=2
+        d=16
+        Q = torch.randn(1,1,1+1,d)
+        K = torch.randn(1,1,n1+n2,d)
+        V = torch.randn(1,1,n1+n2,1)
+        q_t = torch.tensor([[2, 2]])
+        q_idx = torch.tensor([[0, 1]])
+        kv_t = torch.tensor([[0,1,0,1]])
+        kv_idx = torch.tensor([[0,0,1,1]])
+        model.eval()
+        f = model.itgpt.model[0].encodeMMA.uni_modal_attention["171_0"].causal_scaled_dot_product_attention
+        y = f(Q, K, V, q_t, kv_t, q_idx=q_idx, kv_idx=kv_idx)
 
+        y1 = f(Q[...,:1,:],K[...,:n1,:],V[...,:n1,:],q_t[:,:1], kv_t[:,:n1], q_idx=q_idx[:,:1], kv_idx=kv_idx[:,:n1])
+        y2 = f(Q[...,1:,:],K[...,n1:,:],V[...,n1:,:],q_t[:,1:], kv_t[:,n1:], q_idx=q_idx[:,1:], kv_idx=kv_idx[:,n1:])
+        print(y, y1, y2)
+
+        batch1 = training_set[0]
+        batch2 = training_set[1]
+        _, out1 = model(my_collate([batch1]))
+        _, out2 = model(my_collate([batch2]))
+        _, out12 = model(my_collate([batch1, batch2]))
+        print((out12[0, :out1.shape[1],:] - out1[0]).norm())
+    
 def my_collate(batch):
     # Separate data and labels
     all_modalities = list(batch[0]["data"].keys())
@@ -250,6 +274,7 @@ def main(args):
                             enable_checkpointing=False, profiler=profiler, accumulate_grad_batches=accumulate_grad_batches,
                             **extra_dtraining_kwargs, **limits, barebones=args.fast)
         
+
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
