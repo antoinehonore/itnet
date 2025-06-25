@@ -173,7 +173,7 @@ class lTrainer(L.LightningModule):
                 sample_freq = 1/counts[batch["data"]["reference"].idx.long()]
                 keep *= use_sample
                 loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq[keep]).sum()/use_label.sum()  ###.squeeze(-1).T.long())
-                
+
                 self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
                 self.train_scores["logits"].append(logits.detach()[keep])
 
@@ -217,20 +217,11 @@ class lTrainer(L.LightningModule):
         opt = self.optimizers()
         
         loss = self.compute_loss(batch)
-        #if isinstance(loss, torch.Tensor):
-        #    self.the_batch_size += self.hparams["data"]["batch_size"]
-        #    self.manual_backward(loss)
         
-        #self.running_loss += loss
-
-        #if self.the_batch_size >= self.hparams["training"]["grad_step_every"]:
-        #opt.step()
-        #opt.zero_grad()
         self.the_training_step += 1
+
         self.log("{}/train".format(self.loss_fun_name), loss, 
             on_epoch=True, batch_size=self.hparams["data"]["batch_size"])
-        #self.the_batch_size = 0
-        #self.running_loss = 0.
         return loss
         
     def on_train_epoch_end(self):
