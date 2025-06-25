@@ -172,8 +172,7 @@ class lTrainer(L.LightningModule):
 
                 sample_freq = 1/counts[batch["data"]["reference"].idx.long()]
                 keep *= use_sample
-                loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq[keep]).sum()  ###.squeeze(-1).T.long())
-
+                loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq[keep]).sum()/use_label.sum()  ###.squeeze(-1).T.long())
 
                 self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
                 self.train_scores["logits"].append(logits.detach()[keep])
