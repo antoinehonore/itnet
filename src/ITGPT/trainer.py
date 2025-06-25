@@ -164,10 +164,12 @@ class lTrainer(L.LightningModule):
                 # In case the training is with fewer classes
                 keep = y_n != logits.shape[-1]
 
-                use_sample = torch.isin(batch["data"]["reference"].idx, torch.arange(use_label.shape[0],device=use_label.device)[use_label].to(device=keep.device))
+                sample_idx = torch.arange(use_label.shape[0],device=use_label.device)[use_label].to(device=keep.device)
 
-                keep*=use_sample
-                loss += (self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep]).mean()  ###.squeeze(-1).T.long())
+                use_sample = torch.isin(batch["data"]["reference"].idx, sample_idx)
+                sample_freq = 1/batch["data"]["reference"].idx.unique(return_counts=True)[1]
+                keep *= use_sample
+                loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq).sum()  ###.squeeze(-1).T.long())
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
