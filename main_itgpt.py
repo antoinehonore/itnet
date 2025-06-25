@@ -238,7 +238,8 @@ def main(args):
         
         def initialize_all_parameters_to_zero(model: nn.Module):
             for param in model.parameters():
-                nn.init.xavier_uniform_(param)
+                nn.init.normal_(param)
+                #nn.init.xavier_uniform_(param)
                 #nn.init.constant_(param, 0)
 
         initialize_all_parameters_to_zero(model)
