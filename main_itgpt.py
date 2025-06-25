@@ -185,8 +185,6 @@ def main(args):
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
     
-    batch_size = 1
-    
     model_params["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
     data_dimensions = {m: data[a_patid]["data"][m].shape[1]-1 for m in data[a_patid]["data"].keys() if m != "reference"}
@@ -200,9 +198,6 @@ def main(args):
     test_set.class_weights = class_weights
     test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
-    #val_set =  TheDataset(valdata)
-    #val_set.class_weights = class_weights
-    #val_dataloader =   DataLoader(val_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
     outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
@@ -247,12 +242,12 @@ def main(args):
                                   "num_sanity_val_steps":0}
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
-
+        accumulate_grad_batches =  max([1,hparams["training"]["grad_step_every"]//hparams["data"]["batch_size"]])
         trainer = L.Trainer(max_epochs=n_epochs, logger=logger if not args.fast else None, 
                             log_every_n_steps=log_every_n_steps  if not args.fast else None, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1  if not args.fast else False,
-                            enable_checkpointing=False, profiler=profiler,
+                            enable_checkpointing=False, profiler=profiler, accumulate_grad_batches=accumulate_grad_batches,
                             **extra_dtraining_kwargs, **limits, barebones=args.fast)
         
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
@@ -272,7 +267,7 @@ def main(args):
         
         if debug:
             break
-    
+        
         write_pklz(outputfname, all_fold_results)
 
 if __name__ == "__main__":
