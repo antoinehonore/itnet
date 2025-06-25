@@ -219,7 +219,7 @@ class UniModalAttention(torch.nn.Module):
             safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
             self.A = (self.A +safe_mask).softmax(-1) * (1-fully_masked.to(safe_mask.dtype))#mask
 
-        else: # the wrong way that works way better
+        else: # the wrong way that works way better, but doesn't generalize to multiple sequences because the depends on the length of the keys.
             safe_mask = attn_mask.to(torch.float)
             safe_mask[attn_mask == 0] = -torch.inf
             safe_mask[attn_mask == 1] = 0
