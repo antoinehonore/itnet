@@ -204,12 +204,15 @@ class UniModalAttention(torch.nn.Module):
         attn_mask = q_t.unsqueeze(-1) >= kv_t.unsqueeze(1)
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
         attn_mask = attn_mask * mask_batch
-        attn_mask = attn_mask.to(torch.float)
-        attn_mask[attn_mask==0]=-torch.inf
-        attn_mask[attn_mask==1]=0
+        if False:
+            attn_mask = attn_mask.to(torch.float)
+            attn_mask[attn_mask==0]=-torch.inf
+            attn_mask[attn_mask==1]=0
 
-        fully_masked = attn_mask.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
-        # Replace fully-masked rows with zeros (won’t affect output after masking)
-        safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
-        self.A = (self.A +safe_mask).softmax(-1) * (1-fully_masked.to(safe_mask.dtype))#mask
+            fully_masked = attn_mask.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
+            # Replace fully-masked rows with zeros (won’t affect output after masking)
+            safe_mask = attn_mask.masked_fill(fully_masked, 0.0)
+            self.A = (self.A +safe_mask).softmax(-1) * (1-fully_masked.to(safe_mask.dtype))#mask
+        else:
+            self.A = (self.A* attn_mask).softmax(-1) *attn_mask
         return self.A
