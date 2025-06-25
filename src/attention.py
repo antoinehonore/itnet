@@ -206,23 +206,16 @@ class UniModalAttention(torch.nn.Module):
 
         attn_mask = q_t.unsqueeze(-1) >= kv_t.unsqueeze(1)
         mask_batch = q_idx.unsqueeze(0).unsqueeze(-1) == kv_idx.unsqueeze(0).unsqueeze(1)
-        #attn_mask = attn_mask * mask_batch
         
-        if True: # The right way
-            mask_batch = mask_batch.to(torch.float)
-            mask_batch[mask_batch==0]=-torch.inf
-            mask_batch[mask_batch==1]=0
+        # The right way
+        mask_batch = mask_batch.to(torch.float)
+        mask_batch[mask_batch == 0] = -torch.inf
+        mask_batch[mask_batch == 1] = 0
 
-            fully_masked = mask_batch.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
-            
-            # Replace fully-masked rows with zeros (won’t affect output after masking)
-            safe_mask = mask_batch.masked_fill(fully_masked, 0.0)
-            self.A = (self.A*attn_mask +safe_mask).softmax(-1) *attn_mask #* (1-fully_masked.to(safe_mask.dtype))#mask
-
-        else: # the wrong way that works way better, but doesn't generalize to multiple sequences because the depends on the length of the keys.
-            safe_mask = attn_mask.to(torch.float)
-            safe_mask[attn_mask == 0] = -torch.inf
-            safe_mask[attn_mask == 1] = 0
-
-            self.A = (self.A *attn_mask).softmax(-1)*attn_mask
+        fully_masked = mask_batch.eq(float('-inf')).all(dim=-1, keepdim=True)  # shape: (B, H, T_q, 1)
+        
+        # Replace fully-masked rows with zeros (won’t affect output after masking)
+        safe_mask = mask_batch.masked_fill(fully_masked, 0.0)
+        self.A = (self.A *attn_mask +safe_mask).softmax(-1) *attn_mask #* (1-fully_masked.to(safe_mask.dtype))#mask
+        
         return self.A
