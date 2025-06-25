@@ -167,9 +167,11 @@ class lTrainer(L.LightningModule):
                 sample_idx = torch.arange(use_label.shape[0],device=use_label.device)[use_label].to(device=keep.device)
 
                 use_sample = torch.isin(batch["data"]["reference"].idx, sample_idx)
-                sample_freq = 1/batch["data"]["reference"].idx.unique(return_counts=True)[1]
+                counts = torch.bincount(batch["data"]["reference"].idx.long())
+
+                sample_freq = 1/counts[batch["data"]["reference"].idx.long()]
                 keep *= use_sample
-                loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq).sum()  ###.squeeze(-1).T.long())
+                loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq[keep]).sum()  ###.squeeze(-1).T.long())
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
