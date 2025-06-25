@@ -121,7 +121,7 @@ class lTrainer(L.LightningModule):
         ###  rnumber = random.uniform(0,1)
         if ("gpt" in self.loss_fun_name):
             use_label = (self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"]
-            use_gpt   = (self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
+            use_gpt   = True#(self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
         elif ("ignore_labels" in self.loss_fun_name):
             use_label = torch.isin(batch["vid"],self.use_labels_vids.to(device=batch["vid"].device))
