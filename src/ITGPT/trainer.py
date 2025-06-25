@@ -119,6 +119,7 @@ class lTrainer(L.LightningModule):
     def compute_loss(self, batch):
         loss = 0.
         ###  rnumber = random.uniform(0,1)
+
         if ("gpt" in self.loss_fun_name):
             if (self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"]:
                 use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
@@ -128,7 +129,7 @@ class lTrainer(L.LightningModule):
             use_gpt   = True#(self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
 
         elif ("ignore_labels" in self.loss_fun_name):
-            use_label = torch.isin(batch["vid"],self.use_labels_vids.to(device=batch["vid"].device))
+            use_label = torch.isin(batch["vid"], self.use_labels_vids.to(device=batch["vid"].device))
             use_gpt   = True
         else:
             use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
@@ -136,10 +137,6 @@ class lTrainer(L.LightningModule):
         
         if use_gpt or use_label.any():
             xhat, logits = self.model(batch)
-            
-            yclass = batch["label"]
-            self.train_scores["yclass"].append(yclass.squeeze(0))
-            self.train_scores["logits"].append(logits.detach().squeeze(0))
 
             if use_gpt:
                 normalized_batch = self.model.itgpt.normalized_batch
@@ -153,6 +150,7 @@ class lTrainer(L.LightningModule):
                 loss /= len(normalized_batch.keys())
             
             if use_label.any():
+                yclass = batch["label"]
                 sample_weights = batch["class_weights"][yclass.long()].unsqueeze(-1)
 
                 if "BCE" in self.loss_fun_name:
@@ -176,6 +174,11 @@ class lTrainer(L.LightningModule):
                 sample_freq = 1/counts[batch["data"]["reference"].idx.long()]
                 keep *= use_sample
                 loss += ((self.loss_fun(logits[keep], y_n[keep], reduction="none")*sample_weights[keep])*sample_freq[keep]).sum()  ###.squeeze(-1).T.long())
+
+
+                self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
+                self.train_scores["logits"].append(logits.detach().squeeze(0)[keep])
+
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
