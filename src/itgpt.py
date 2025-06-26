@@ -138,6 +138,7 @@ class ITGPT(torch.nn.Module):
     def forward(self, batch):
         thedata = self.normalize(batch)
         thedata = self.embedding(thedata)
+        self.embedded_batch = thedata
         xhat, z = self.model(thedata)
         xhat = self.output_embedding(xhat)
         z = self.output_anchor(z)
