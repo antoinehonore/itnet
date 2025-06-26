@@ -176,7 +176,8 @@ class lTrainer(L.LightningModule):
 
                 self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
                 self.train_scores["logits"].append(logits.detach()[keep])
-
+        else:
+            loss=None#print("")
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
@@ -219,9 +220,9 @@ class lTrainer(L.LightningModule):
         loss = self.compute_loss(batch)
         
         self.the_training_step += 1
-
-        self.log("{}/train".format(self.loss_fun_name), loss, 
-            on_epoch=True, batch_size=self.hparams["data"]["batch_size"])
+        if not (loss is None):
+            self.log("{}/train".format(self.loss_fun_name), loss, 
+                on_epoch=True, batch_size=self.hparams["data"]["batch_size"])
         return loss
         
     def on_train_epoch_end(self):
