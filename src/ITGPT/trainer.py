@@ -130,7 +130,7 @@ class lTrainer(L.LightningModule):
 
         elif ("ignore_labels" in self.loss_fun_name):
             use_label = torch.isin(batch["vid"], self.use_labels_vids.to(device=batch["vid"].device))
-            use_gpt   = True
+            use_gpt   = "gen" in self.loss_fun_name
         else:
             use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
             use_gpt = False
