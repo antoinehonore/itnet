@@ -186,21 +186,22 @@ class UniModalAttention(torch.nn.Module):
         _, _, L, _ = K.shape
 
         if self.weight_type=="gaussian":
-            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K).square()
-            self.A = (-self.A/tau)
+            A = torch.einsum('nhtc,nhlc->nhtl', Q, K).square()
+            A = (-A/tau)
 
         elif self.weight_type=="uniform":
-            self.A = torch.ones(N,H,T,L, dtype=Q.dtype, device=Q.device)
+            A = torch.ones(N,H,T,L, dtype=Q.dtype, device=Q.device)
         
         elif self.weight_type=="linear":
-            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K).abs()
-            self.A = (-self.A/tau)
+            A = torch.einsum('nhtc,nhlc->nhtl', Q, K).abs()
+            A = (-A/tau)
 
         elif self.weight_type == "vanilla":
-            self.A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
+            A = torch.einsum('nhtc,nhlc->nhtl', Q, K) / math.sqrt(K.shape[-1])
 
         elif self.weight_type == "relu":
-            self.A = torch.einsum('nhtc,nhlc->nhtl', torch.nn.functional.relu(Q), torch.nn.functional.relu(K)) / math.sqrt(K.shape[-1])
+            A = torch.einsum('nhtc,nhlc->nhtl', torch.nn.functional.relu(Q), torch.nn.functional.relu(K)) / math.sqrt(K.shape[-1])
+        
         else:
             raise Exception("Unknown weight_type="+self.weight_type)
 
@@ -216,6 +217,6 @@ class UniModalAttention(torch.nn.Module):
         
         # Replace fully-masked rows with zeros (won’t affect output after masking)
         safe_mask = mask_batch.masked_fill(fully_masked, 0.0)
-        self.A = (self.A *attn_mask +safe_mask).softmax(-1) *attn_mask #* (1-fully_masked.to(safe_mask.dtype))#mask
-        
-        return self.A
+        A = (A *attn_mask +safe_mask).softmax(-1) *attn_mask #* (1-fully_masked.to(safe_mask.dtype))#mask
+
+        return A
