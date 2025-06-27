@@ -49,13 +49,13 @@ class MultiModalAttention(torch.nn.Module):
                                     output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
     
     def __repr__(self):
-        return "{}x UniModalAttention(Query/Keys={}, Values={}) -> {}".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"], self.output_layer.__repr__())
+        return "{}x UniModalAttention(Query/Keys={}, Values={}){}".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"], " -> " + self.output_layer.__repr__() if not self.output_layer is None else "")
 
     def forward(self, batch, mode="encode"):
         """
             Batch is a dictionnary : {"reference": shape (N, 1, T_1, d_1), "m1": shape (N,1,T_2,d_2), ...}
         """
-        
+
         data_q = batch["reference"]
         data_q = self.compute_Q(data_q)
 
@@ -89,6 +89,8 @@ class MultiModalAttention(torch.nn.Module):
         else:
            raise Exception("Unknown qk_type={}".format(self.qk_type))
         return TSdata(Q, timeline, data_q.idx)
+
+
 
 class UniModalAttention(torch.nn.Module):
     def __init__(self, d_q_in, d_kv_in, d_qk, d_v, n_layers_qkv, qk_type, bias=True,  init_random=False, init_tau=1, 
@@ -135,7 +137,6 @@ class UniModalAttention(torch.nn.Module):
             raise Exception("{} contains NANs !!!".format(self.name))
         return out
     
-
     def compute_KV(self, data_kv):
         timeline = data_kv.timeline
         # If all the data should be used to compute Q and K (i.e. the attention weights)
@@ -220,3 +221,5 @@ class UniModalAttention(torch.nn.Module):
         A = (A *attn_mask +safe_mask).softmax(-1) *attn_mask #* (1-fully_masked.to(safe_mask.dtype))#mask
 
         return A
+
+
