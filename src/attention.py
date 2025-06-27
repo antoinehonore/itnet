@@ -19,13 +19,17 @@ def add_one(x, dim=1):
 
 
 class MultiModalAttention(torch.nn.Module):
-    def __init__(self, dimensions, bias=True, output_type=None,  n_layers_qkv = 0, n_layers_output=0,
+    def __init__(self, dimensions, bias=True, output_type=None,  n_layers_qkv = 0, n_layers_output=0,anchor_dim=2,
                  qk_type="time", init_random=False, init_tau=1, weight_type="gaussian", attention_type="vanilla", **kw_args_mlp):
         super(MultiModalAttention, self).__init__()
         self.dimensions = dimensions
         self.feature_map_q = add_one
         self.qk_type = qk_type
+        all_in_dims = [ dd["in_kv"] for dd in self.dimensions.values()]
         self.D1 = list(self.dimensions.values())[0]
+        self.Dmin = min(all_in_dims)
+        self.Dmax = max(all_in_dims)  #
+
         d_q_in, d_qk = self.D1["in_q"], self.D1["out_qk"]
         self.d_q_in = d_q_in
         self.d_qk = d_qk
@@ -45,11 +49,11 @@ class MultiModalAttention(torch.nn.Module):
                 output_d_in = output_d_in[0]
                 self.output_layer = OutputLayer(output_d_in, output_d_in, list(self.uni_modal_attention.keys()), output_type=output_type)
             else:
-                self.output_layer = FullOutputLayer(sum(output_d_in), output_d_in[0], list(self.uni_modal_attention.keys()),
+                self.output_layer = FullOutputLayer(sum(output_d_in), anchor_dim, list(self.uni_modal_attention.keys()),
                                     output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
     
     def __repr__(self):
-        return "{}x UniModalAttention(Query/Keys={}, Values={}){}".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"], " -> " + self.output_layer.__repr__() if not self.output_layer is None else "")
+        return "{}x UniModalAttention(Query/Keys={}, Values=[{},{}]){}".format(len(self.uni_modal_attention), self.d_qk, self.Dmin,self.Dmax, " -> " + self.output_layer.__repr__() if not self.output_layer is None else "")
 
     def forward(self, batch, mode="encode"):
         """
@@ -57,16 +61,19 @@ class MultiModalAttention(torch.nn.Module):
         """
 
         data_q = batch["reference"]
-        data_q = self.compute_Q(data_q)
+        #data_q = self.compute_Q(data_q)
 
         if mode == "encode":
+            #data_q = batch["reference"]
+            data_q = self.compute_Q(data_q)
             results    = {mname: uni_modal.forward(data_q, batch[mname]) for mname, uni_modal in self.uni_modal_attention.items()}
             norms      = {mname: r.detach().square().sum(-1).unsqueeze(-1) for mname, r in results.items()}
             tot_norm   = torch.cat(list(norms.values()),dim=-1).sum(-1).unsqueeze(-1)
             self.norms = {k: 100 * v / tot_norm for k,v in norms.items()}
         
         elif mode == "decode":
-            results = {mname: uni_modal.forward(batch[mname], data_q) for mname, uni_modal in self.uni_modal_attention.items()}
+            # 
+            results = {mname: uni_modal.forward(self.compute_Q(batch[mname]), data_q) for mname, uni_modal in self.uni_modal_attention.items()}
         else:
             raise Exception("Unknown MMA mode={}".format(mode))
 
@@ -89,7 +96,6 @@ class MultiModalAttention(torch.nn.Module):
         else:
            raise Exception("Unknown qk_type={}".format(self.qk_type))
         return TSdata(Q, timeline, data_q.idx)
-
 
 
 class UniModalAttention(torch.nn.Module):

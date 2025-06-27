@@ -16,23 +16,22 @@ class ItnetBlock(torch.nn.Module):
 
         kw_args_mlp = dict(activation=hparams["activation"], layernorm=hparams["layernorm"], skipconnections=hparams["skipconnections"], skiptemperature=hparams["skiptemperature"],dropout_p=hparams["dropout_p"])
         
-        self.encodeMMA = MultiModalAttention(hparams["modalities_dimension"],
+        self.encodeMMA = MultiModalAttention(hparams["modalities_dimension"], anchor_dim=hparams["itnet_anchor_dim"],
                 n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], output_type=hparams["output_type"], 
                 n_layers_output=hparams["n_layers_output"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                 weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
             )
         
         if self.decoder:
-            decoder_modalities = {mname: dict(in_q=D["in_q"], in_kv=D["out_qk"], out_qk=D["out_qk"], out_v=D["in_kv"]) for mname, D in hparams["modalities_dimension"].items()}
+            decoder_modalities = {mname: dict(in_q=D["out_qk"], in_kv=hparams["itnet_anchor_dim"], out_qk=D["out_qk"], out_v=D["in_kv"]) for mname, D in hparams["modalities_dimension"].items()}
 
-            self.decodeMMA = MultiModalAttention(decoder_modalities,
+            self.decodeMMA = MultiModalAttention(decoder_modalities, anchor_dim=hparams["itnet_anchor_dim"],
                     n_layers_qkv=hparams["n_layers_qkv"], bias=hparams["bias"], init_random=hparams["init_random"], init_tau=hparams["init_tau"], 
                     weight_type=hparams["weight_type"], qk_type=hparams["qk_type"], attention_type=hparams["attention_type"], **kw_args_mlp
                 )
 
     def __repr__(self):
         return "Encoder({})".format(self.encodeMMA.__repr__()) + ("\nDecoder({})".format(self.decodeMMA.__repr__()) if self.decoder else "")
-
 
     def forward(self, args, pool=None, only_last=True):
         """
@@ -97,10 +96,10 @@ class ITGPT(torch.nn.Module):
         self.embedding = Embedding(input_dimensions)
         self.output_embedding = Embedding(output_dimensions)
         
-        self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"],hparams["d_out"])
+        self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"], hparams["d_out"])
         
         # (d_in_q, d_in_kv, d_qk, d_out)
-        blocks_dimensions = {mname: dict(in_q=D["in_q"], in_kv=input_dimensions[mname][1], out_qk=D["out_qk"], out_v=hparams["itnet_anchor_dim"]) 
+        blocks_dimensions = {mname: dict(in_q=D["in_q"], in_kv=input_dimensions[mname][1], out_qk=D["out_qk"], out_v=input_dimensions[mname][1]) 
                         for mname, D in hparams["modalities_dimension"].items()}
 
         hparams["modalities_dimension"] = blocks_dimensions

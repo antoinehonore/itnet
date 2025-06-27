@@ -49,9 +49,9 @@ class FullOutputLayer(torch.nn.Module):
 
     def forward(self, batch):
         theinput = [batch[mname] for mname in self.names]
-        x = torch.cat(theinput, dim=1)
-        # x is (N,H,T,d)
-        x = x.transpose(1,2).flatten(start_dim=-2,end_dim=-1)
+        x = torch.cat(theinput, dim=-1).squeeze(1)
+        # x is (N,T,D)
+        #x = x.transpose(1,2).flatten(start_dim=-2,end_dim=-1)
         # x is (N,T,Hd)
         yhat = self.function(x)
         return yhat
