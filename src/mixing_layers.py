@@ -31,6 +31,10 @@ class OutputLayer(torch.nn.Module):
         yhat = yhat.sum(1)
         return yhat
 
+    def __repr__(self):
+        return "sum( {}x {} )".format(self.linear_functions[list(self.linear_functions.keys())[0]])
+
+
 class FullOutputLayer(torch.nn.Module):
     def __init__(self,d_in, d_out, names, output_type="fulllinear", n_layers=None,d_qk=None,bias=True, kw_args_mlp={}):
         super(FullOutputLayer,self).__init__()
@@ -52,6 +56,10 @@ class FullOutputLayer(torch.nn.Module):
         yhat = self.function(x)
         return yhat
 
+    def __repr__(self):
+        return "Mixing({})".format(self.function)
+
+        
 class QLinear(torch.nn.Module):
     def __init__(self, d_in):
         super(QLinear,self).__init__()

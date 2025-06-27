@@ -49,13 +49,13 @@ class MultiModalAttention(torch.nn.Module):
                                     output_type=output_type, n_layers=n_layers_output,d_qk=d_qk, kw_args_mlp=kw_args_mlp)
     
     def __repr__(self):
-        return "{}x UniModalAttention(Query/Keys={}, Values={})".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"])
+        return "{}x UniModalAttention(Query/Keys={}, Values={}) -> {}".format(len(self.uni_modal_attention),self.d_qk,self.D1["out_v"], self.output_layer.__repr__())
 
     def forward(self, batch, mode="encode"):
         """
             Batch is a dictionnary : {"reference": shape (N, 1, T_1, d_1), "m1": shape (N,1,T_2,d_2), ...}
         """
-
+        
         data_q = batch["reference"]
         data_q = self.compute_Q(data_q)
 
