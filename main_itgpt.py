@@ -251,8 +251,9 @@ def main(args):
         
         all_tr_vids = torch.tensor([batch["vid"] for batch in training_set])
         all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
-        n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
-        ltrainer.use_labels_vids = all_tr_vids[:n_labels]
+        if "ignore_labels" in hparams["training"]["loss"]:
+            n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
+            ltrainer.use_labels_vids = all_tr_vids[:n_labels]
 
         log_every_n_steps = len(train_dataloader)//100
         check_val_every_n_epoch = 1
@@ -281,7 +282,6 @@ def main(args):
                             enable_progress_bar=args.v>1  if not args.fast else False,
                             enable_checkpointing=False, profiler=profiler, accumulate_grad_batches=accumulate_grad_batches,
                             **extra_dtraining_kwargs, **limits, barebones=args.fast)
-        
 
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
