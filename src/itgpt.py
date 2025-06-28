@@ -5,6 +5,7 @@ from src.attention import MultiModalAttention
 from src.datastruct import TSdata
 from src.activations import get_activation
 from src.normalization import *
+import copy
 
 # A wrapper around MultiModalAttention
 class ItnetBlock(torch.nn.Module):
@@ -83,10 +84,10 @@ class Embedding(torch.nn.Module):
 class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
         super(ITGPT, self).__init__()
-        self.hparams = hparams
+        self.hparams = dict(hparams)
         # (d_in_q, d_in_kv, d_qk, d_out)
-        input_dimensions = {mname: (D["in_kv"], int(round(D["in_kv"]*(1+hparams["itnet_embedding_dim_p"])))) 
-                                    for mname,D in hparams["modalities_dimension"].items()
+        input_dimensions = {mname: (D["in_kv"], int(round(D["in_kv"]*(1+self.hparams["itnet_embedding_dim_p"])))) 
+                                    for mname,D in self.hparams["modalities_dimension"].items()
                             }
         
         output_dimensions = {mname: D[::-1] 
@@ -96,20 +97,20 @@ class ITGPT(torch.nn.Module):
         self.embedding = Embedding(input_dimensions)
         self.output_embedding = Embedding(output_dimensions)
         
-        self.output_anchor = torch.nn.Linear(hparams["itnet_anchor_dim"], hparams["d_out"])
+        self.output_anchor = torch.nn.Linear(self.hparams["itnet_anchor_dim"], self.hparams["d_out"])
         
         # (d_in_q, d_in_kv, d_qk, d_out)
         blocks_dimensions = {mname: dict(in_q=D["in_q"], in_kv=input_dimensions[mname][1], out_qk=D["out_qk"], out_v=input_dimensions[mname][1]) 
-                        for mname, D in hparams["modalities_dimension"].items()}
+                        for mname, D in self.hparams["modalities_dimension"].items()}
 
-        hparams["modalities_dimension"] = blocks_dimensions
+        self.hparams["modalities_dimension"] = blocks_dimensions
         
-        self.model = torch.nn.Sequential(*[ItnetBlock(hparams, decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
+        self.model = torch.nn.Sequential(*[ItnetBlock(self.hparams, decoder=i<(hparams["itnet_n_layers"]-1)) for i in range(hparams["itnet_n_layers"])])
 
-        self.normalization = hparams["normalization"]
+        self.normalization = self.hparams["normalization"]
 
         if self.normalization == "batch":
-            self.norm_funcs = torch.nn.ModuleDict({mname: torch.nn.BatchNorm2d(dims[1]) for mname,dims in hparams["modalities_dimension"].items()})
+            self.norm_funcs = torch.nn.ModuleDict({mname: torch.nn.BatchNorm2d(dims[1]) for mname,dims in self.hparams["modalities_dimension"].items()})
         elif self.normalization == "log":
             self.norm_funcs = apply_log#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
         elif self.normalization == "domain":

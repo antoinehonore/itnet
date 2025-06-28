@@ -7,7 +7,8 @@ class PositionalEncoding(torch.nn.Module):
         super(PositionalEncoding, self).__init__()
         self.max_seq_length = max_seq_length
         self.d_model = d_model
-
+        assert (d_model % 2)==0, "The position encoding dimension must be an even number."
+        
     def forward(self, x):
         """x is a time vector of size (N,T). 
         Returns a (N,T,d_model) embedding of the time vector"""

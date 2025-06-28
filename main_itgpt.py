@@ -208,10 +208,10 @@ def main(args):
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
     
-    model_params["init_tau"] = 1  ###  init_tau(data)
+    hparams["model"]["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
     data_dimensions = {m: data[a_patid]["data"][m].shape[1]-1 for m in data[a_patid]["data"].keys() if m != "reference"}
-    model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
+    hparams["model"]["modalities_dimension"] = get_modality_dimensions(data_dimensions, hparams["model"])
     
     loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
 
