@@ -84,7 +84,7 @@ class Embedding(torch.nn.Module):
 class ITGPT(torch.nn.Module):
     def __init__(self, hparams):
         super(ITGPT, self).__init__()
-        self.hparams = dict(hparams)
+        self.hparams = copy.deepcopy(hparams)
         # (d_in_q, d_in_kv, d_qk, d_out)
         input_dimensions = {mname: (D["in_kv"], int(round(D["in_kv"]*(1+self.hparams["itnet_embedding_dim_p"])))) 
                                     for mname,D in self.hparams["modalities_dimension"].items()
