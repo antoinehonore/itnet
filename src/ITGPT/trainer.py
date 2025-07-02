@@ -119,26 +119,24 @@ class lTrainer(L.LightningModule):
     def compute_loss(self, batch):
         loss = 0.
         ###  rnumber = random.uniform(0,1)
-
-        if ("gpt" in self.loss_fun_name):
-            if (self.current_epoch/self.hparams["training"]["n_epochs"]) >= self.hparams["training"]["use_p_label"]:
-                use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
-                use_gpt   = False
-            else:
-                use_label = torch.zeros(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
-            
-                use_gpt   = True#(self.current_epoch/self.hparams["training"]["n_epochs"]) < self.hparams["training"]["use_p_label"]
-
-        elif ("ignore_labels" in self.loss_fun_name):
-            use_label = torch.isin(batch["vid"], self.use_labels_vids.to(device=batch["vid"].device))
-            use_gpt   = "gen" in self.loss_fun_name
-        else:
-            use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
-            use_gpt = False
         
-        if use_gpt or use_label.any():
+        # Default: use all labels and no SSL
+        use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
+        use_ssl = False
+
+
+        if (self.current_epoch < self.hparams["training"]["n_epochs_gpt"]):
+            use_ssl   = True
+            use_label = torch.zeros(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
+        
+        else:
+            if ("ignore_labels" in self.loss_fun_name):
+                use_label = torch.isin(batch["vid"], self.use_labels_vids.to(device=batch["vid"].device))
+                use_ssl   = "gen" in self.loss_fun_name
+        
+        if use_ssl or use_label.any():
             xhat, logits = self.model(batch)
-            if use_gpt:
+            if use_ssl:
                 normalized_batch = self.model.itgpt.normalized_batch
                 for m in normalized_batch.keys():
                     if m != "reference":
