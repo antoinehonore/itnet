@@ -178,7 +178,7 @@ def main(args):
     with open(cfg_fname,"r") as fp:
         hparams = json.load(fp)["params"]
     
-    n_epochs = hparams["training"]["n_epochs_max"]
+    n_epochs = hparams["training"]["n_epochs"] + hparams["training"]["n_epochs_gpt"] 
     
     model_params = hparams["model"]
     
@@ -198,7 +198,7 @@ def main(args):
         write_pklz("data/compx/datasmall.pklz", [class_weights, datasmall, valdata, testdata])
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
-    
+
     tr_vids = list(data.keys())
     val_vids = list(valdata.keys())
 
