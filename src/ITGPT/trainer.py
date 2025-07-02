@@ -124,7 +124,7 @@ class lTrainer(L.LightningModule):
         use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
         use_ssl = False
 
-
+        # Use SSL as pre-training
         if (self.current_epoch < self.hparams["training"]["n_epochs_gpt"]):
             use_ssl   = True
             use_label = torch.zeros(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
