@@ -178,7 +178,7 @@ def main(args):
     with open(cfg_fname,"r") as fp:
         hparams = json.load(fp)["params"]
     
-    n_epochs = hparams["training"]["n_epochs"]
+    n_epochs = hparams["training"]["n_epochs_max"]
     
     model_params = hparams["model"]
     
@@ -198,7 +198,7 @@ def main(args):
         write_pklz("data/compx/datasmall.pklz", [class_weights, datasmall, valdata, testdata])
     else:
         class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
-
+    
     tr_vids = list(data.keys())
     val_vids = list(valdata.keys())
 
@@ -232,6 +232,7 @@ def main(args):
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
+        last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         
         os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
@@ -285,7 +286,6 @@ def main(args):
 
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
-        last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         trainer.save_checkpoint(last_checkpoint)
         
         results = dict(fold_train_index=fold_train_index, fold_val_index=fold_val_index,last_checkpoint=last_checkpoint)
