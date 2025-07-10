@@ -285,7 +285,10 @@ def main(args):
                                   "num_sanity_val_steps":0}
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
+        
+        # Infer how many batch gradients to accumulate before an optimizer step
         accumulate_grad_batches =  max([1, hparams["training"]["grad_step_every"]//hparams["data"]["batch_size"]])
+        
         trainer = L.Trainer(max_epochs=n_epochs, 
                             logger=logger if not args.fast else None, 
                             log_every_n_steps=log_every_n_steps  if not args.fast else None, 
