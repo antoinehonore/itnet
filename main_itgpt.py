@@ -34,6 +34,16 @@ from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 from sklearn.preprocessing import LabelEncoder
 
+import warnings
+warnings.filterwarnings("ignore")
+
+def initialize_all_parameters_to_zero(model: nn.Module):
+    for param in model.parameters():
+        nn.init.normal_(param)
+        #nn.init.xavier_uniform_(param)
+        #nn.init.constant_(param, 0)
+
+
 def get_modality_dimensions(data_dimensions, model_params):
     modalities_dimension = {}
     modalities_dimension["q"] = 1
@@ -105,7 +115,7 @@ def inference_code(fname_ckpt,val_set):
     fig, ax = plt.subplots()
     plot_confusion_matrix(ax, yclass, logits.argmax(-1), num_classes=logits.shape[1])
 
-def check_model():
+def test_batching_data():
     if False:
         n1=2
         n2=2
@@ -147,7 +157,7 @@ def my_collate(batch):
 
     return {'data': data, 'label': labels, "class_weights":batch[0]["class_weights"], "vid":vids}
 
-def cat_modalities(m,batches):
+def cat_modalities(m, batches):
     idx = torch.cat([torch.ones(t.shape[0])*i for i,t in enumerate(batches)])#.reshape(-1,1)
     data = torch.cat(batches)
     if m == "reference":
@@ -163,7 +173,8 @@ def main(args):
     exp_name_ = os.path.join(os.path.basename(os.path.dirname(cfg_fname)), 
                              os.path.basename(cfg_fname).replace(".json",""))
     log_dir = "lightning_logs"
-    exp_name = exp_name_
+    outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
+
     torch.set_num_threads(4)
     seed = 12345
     torch.manual_seed(seed)
@@ -182,9 +193,6 @@ def main(args):
     
     model_params = hparams["model"]
     
-    import warnings, socket
-    warnings.filterwarnings("ignore")
-
     # loading dataset
     # Please change the path with the path of your dataset
     DPATH = 'data/compx/'
@@ -202,57 +210,57 @@ def main(args):
     tr_vids = list(data.keys())
     val_vids = list(valdata.keys())
 
+    # Check that there are no duplicates
     assert(len(list(set(tr_vids+val_vids))) == (len(tr_vids)+len(val_vids)))
-    data = {**data,**valdata}
+
+    data = {**data, **valdata}
 
     dataset = TheDataset(data)
     dataset.class_weights = class_weights
     
     hparams["model"]["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
+    
     data_dimensions = {m: data[a_patid]["data"][m].shape[1]-1 for m in data[a_patid]["data"].keys() if m != "reference"}
+    
+    # Takes the modality dimensions and write them to the config file
     hparams["model"]["modalities_dimension"] = get_modality_dimensions(data_dimensions, hparams["model"])
     
-    loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
-
     tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])
-    all_fold_results = []
     test_set =  TheDataset(testdata)
     test_set.class_weights = class_weights
-    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
 
-    outputfname = os.path.join(log_dir, exp_name_, "results.pklz")
+    loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
+    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
+    
+    all_fold_results = []
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
         training_set = Subset(dataset, fold_train_index)
         val_set_internal = Subset(dataset, fold_val_index)
-        ###my_collate = None
+        
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, collate_fn=my_collate,**loaders_kwargs)
         val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False, collate_fn=my_collate, **loaders_kwargs)
         exp_name = exp_name_ + "/fold{}".format(fold_idx)
 
         logger = TensorBoardLogger(log_dir, name=exp_name, default_hp_metric=False)
+        os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
+
         last_checkpoint = os.path.join(logger.log_dir, "checkpoints", "last.ckpt")
         
-        os.makedirs(os.path.dirname(logger.log_dir), exist_ok=True)
         model = Predictor(hparams["model"])
         
-        def initialize_all_parameters_to_zero(model: nn.Module):
-            for param in model.parameters():
-                nn.init.normal_(param)
-                #nn.init.xavier_uniform_(param)
-                #nn.init.constant_(param, 0)
-
-        #initialize_all_parameters_to_zero(model)
-
         if args.compile:
             model = torch.compile(model)
+        
         print(model)
+        
         ltrainer = lTrainer(model=model, hparams=hparams)
         
-        all_tr_vids = torch.tensor([batch["vid"] for batch in training_set])
-        all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
+        # Flag some labels as not usable by the trainer
         if "ignore_labels" in hparams["training"]["loss"]:
+            all_tr_vids = torch.tensor([batch["vid"] for batch in training_set])
+            all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
             n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
             ltrainer.use_labels_vids = all_tr_vids[:n_labels]
 
@@ -263,6 +271,7 @@ def main(args):
         limit_test_batches = limit_train_batches
         limit_val_batches = limit_train_batches
 
+        # Reduce the training time in case we are profiling
         if not (profiler is None):
             n_epochs = 9
             check_val_every_n_epoch = 10
@@ -277,12 +286,17 @@ def main(args):
         
         limits = dict(limit_test_batches=limit_test_batches, limit_train_batches=limit_train_batches,limit_val_batches=limit_val_batches)
         accumulate_grad_batches =  max([1, hparams["training"]["grad_step_every"]//hparams["data"]["batch_size"]])
-        trainer = L.Trainer(max_epochs=n_epochs, logger=logger if not args.fast else None, 
+        trainer = L.Trainer(max_epochs=n_epochs, 
+                            logger=logger if not args.fast else None, 
                             log_every_n_steps=log_every_n_steps  if not args.fast else None, 
                             check_val_every_n_epoch=check_val_every_n_epoch,
                             enable_progress_bar=args.v>1  if not args.fast else False,
-                            enable_checkpointing=False, profiler=profiler, accumulate_grad_batches=accumulate_grad_batches,
-                            **extra_dtraining_kwargs, **limits, barebones=args.fast)
+                            enable_checkpointing=False, 
+                            profiler=profiler,
+                            accumulate_grad_batches=accumulate_grad_batches,
+                            **extra_dtraining_kwargs, 
+                            **limits, 
+                            barebones=args.fast)
 
         trainer.fit(ltrainer, train_dataloaders=train_dataloader, val_dataloaders=[val_internal_dataloader])
 
@@ -292,10 +306,6 @@ def main(args):
         trainer.test(ltrainer, dataloaders=val_internal_dataloader)
         results["yclass"] = torch.cat(ltrainer.test_scores['yclass']).cpu()
         results["logits"] = torch.cat(ltrainer.test_scores['logits']).cpu()
-        #ltrainer.test_scores = []
-        #ltrainer.model.itgpt.normalized_batch = None
-        #results["ltrainer"] = ltrainer.cpu()
-        #write_pklz(outputfname_fold, results)
         all_fold_results.append(results)
         
         if debug:

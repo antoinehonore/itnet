@@ -176,7 +176,7 @@ class lTrainer(L.LightningModule):
                 self.train_scores["yclass"].append(yclass.squeeze(0)[keep])
                 self.train_scores["logits"].append(logits.detach()[keep])
         else:
-            loss=None#print("")
+            loss = None
         return loss
     
     def get_scores(self, logits, yclass, suffix=""):
@@ -198,12 +198,10 @@ class lTrainer(L.LightningModule):
         thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
         thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
         thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
-        #self.init_confmat(n=logits.shape[1])
-
+        
         cm = self.compute_confmat(yhat_softmax, yclass)
         
         thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device)[:cm.shape[0],:cm.shape[1]] * cm).sum() / cm.sum()
-
         thescores["topk2/exact"+ suffix] =   topk_multilabel_accuracy(logits, y, criteria="exact_match", k=2)
         thescores["topk2/hamming"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="hamming", k=2)
         thescores["topk2/overlap"+ suffix] = topk_multilabel_accuracy(logits, y, criteria="overlap", k=2)
