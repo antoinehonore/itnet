@@ -8,23 +8,23 @@ from src.datastruct import TSdata
 
 class TheDataset(Dataset):
     def __init__(self, data):
-        self.vids = list(data.keys())
+        self.ids = list(data.keys())
         self.data = data  ###  {cutter_no: {m:data[cutter_no]["calX"][m].to(device=device)for m in data[cutter_no]["calX"].keys()} for cutter_no in data.keys()}
         #self.slopes = {v_id: {k:compute_slope(v) for k,v in self.data[v_id]["data"].items() if (k!="specs") and (k!="reference")} for v_id in self.data.keys()}
 
     def get_class_weights(self):
-        self.n_classes = self.data[self.vids[0]]["targets_OH"].shape[1]
+        self.n_classes = self.data[self.ids[0]]["targets_OH"].shape[1]
 
         y = torch.cat([d["targets_int"] for d in self.data.values()]).squeeze(-1).numpy()#.#tolist()
         self.class_weights = torch.from_numpy(compute_class_weight(class_weight="balanced", classes=np.arange(self.n_classes), y=y)).to(dtype=torch.float32) #/len(self.data.values())
         
     def __len__(self):
-        return len(self.vids)
+        return len(self.ids)
 
     def __getitem__(self, idx):
         thedata = self.data[self.vids[idx]]
         thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
-        thedata["vid"] = self.vids[idx]
+        thedata["id"] = self.ids[idx]
         thedata["data"]["reference"] = thedata["data"]["reference"].reshape(-1,1)
         return thedata
 

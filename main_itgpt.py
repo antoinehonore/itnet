@@ -8,8 +8,6 @@ from src.itgpt import ITGPT, Predictor
 import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
-from src.compx.mydata import TheDataset, get_data
-
 from src.ITGPT.trainer import lTrainer
 import os 
 import socket
@@ -43,7 +41,6 @@ def initialize_all_parameters_to_zero(model: nn.Module):
         #nn.init.xavier_uniform_(param)
         #nn.init.constant_(param, 0)
 
-
 def get_modality_dimensions(data_dimensions, model_params):
     modalities_dimension = {}
     modalities_dimension["q"] = 1
@@ -74,7 +71,7 @@ def patient_timesplit(patid, d, n_splits=5):
     return out_tr, out_val
 
 def get_tr_val_index_lists(dataset, k=5):
-    vids = np.array(dataset.vids)
+    vids = np.array(dataset.ids)
     if k>0:
         tr_val_index_lists = KFold(k, shuffle=True).split(vids)
     else:
@@ -148,14 +145,14 @@ def my_collate(batch):
     data = {m: cat_modalities(m,[item['data'][m] for item in batch]) for m in all_modalities}
 
     #labels = cat_modalities("reference", [item['targets_int'] for item in batch])
-    vids = torch.tensor([item['vid'] for item in batch])
+    ids = torch.tensor([item['id'] for item in batch])
     # Pad the sequences (assuming 'data' is a sequence)
     #padded_data = pad_sequence(data, batch_first=True) # Important: batch_first!
 
     # Convert labels to tensor (if needed)
     labels = torch.cat([item['targets_int'] for item in batch]).unsqueeze(0)
 
-    return {'data': data, 'label': labels, "class_weights":batch[0]["class_weights"], "vid":vids}
+    return {'data': data, 'label': labels, "class_weights":batch[0]["class_weights"], "id":ids}
 
 def cat_modalities(m, batches):
     idx = torch.cat([torch.ones(t.shape[0])*i for i,t in enumerate(batches)])#.reshape(-1,1)
@@ -193,31 +190,71 @@ def main(args):
     
     model_params = hparams["model"]
     
-    # loading dataset
-    # Please change the path with the path of your dataset
-    DPATH = 'data/compx/'
-    if  (not (args.small)):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
-        data,valdata,testdata = get_data(DPATH)
+    if hparams["data"]["name"] == "compx":
+
+        from src.compx.mydata import TheDataset, get_data
+
+        # loading dataset
+        # Please change the path with the path of your dataset
+        DPATH = 'data/compx/'
+        if  (not (args.small)):# and (os.path.exists(DPATH + "/datasmall.pklz"))):
+            data,valdata,testdata = get_data(DPATH)
+            dataset = TheDataset(data)
+            dataset.get_class_weights()
+            class_weights = dataset.class_weights
+            datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//20:]}
+
+            write_pklz("data/compx/datasmall.pklz", [class_weights, datasmall, valdata, testdata])
+        else:
+            class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
+            
+        tr_vids = list(data.keys())
+        val_vids = list(valdata.keys())
+
+        # Check that there are no duplicates
+        assert(len(list(set(tr_vids+val_vids))) == (len(tr_vids)+len(val_vids)))
+        
+        data = {**data, **valdata}
+
         dataset = TheDataset(data)
-        dataset.get_class_weights()
+        
+        dataset.class_weights = class_weights
+        
+    elif hparams["data"]["name"] == "tihm":
+        from src.tihm.mydata import TheDataset, get_tihm_modalities,to_dict,get_tihm_data,get_variable_groups
+        from src.tihm.data_loader import TIHMDataset
+
+        DPATH = 'data/tihm/Dataset/'
+        TEST_START = "2019-06-23"
+        n_days = 0
+        batch_size = 1
+        impute = {"imputer": None}
+
+        if hparams["data"]["impute"] == "linear":
+            impute = {}
+
+        train_dataset = TIHMDataset(
+            root=DPATH, train=True, normalise="global", n_days=n_days, **impute, TEST_START=TEST_START#"2019-06-23"
+        )
+
+        test_dataset = TIHMDataset(
+            root=DPATH, train=False, normalise="global", n_days=n_days,**impute, TEST_START=TEST_START#"2019-06-23"
+        )
+        
+        train_patients, test_patients = to_dict(train_dataset, test_dataset)
+
+        variable_groups = get_variable_groups(train_dataset)
+
+        data, ref_date = get_tihm_data(train_patients, variable_groups, train_dataset.feature_names)
+        testdata,  _ = get_tihm_data(test_patients, variable_groups, test_dataset.feature_names, ref_date=ref_date)
+
+        dataset = TheDataset(data)
+        
         class_weights = dataset.class_weights
-        datasmall = {k: data[k] for k in list(data.keys())[-len(data.keys())//20:]}
-
-        write_pklz("data/compx/datasmall.pklz", [class_weights, datasmall, valdata, testdata])
+        
     else:
-        class_weights, data, valdata, testdata = read_pklz(DPATH + "/datasmall.pklz")
+        raise Exception("Dataset name={} is NYI.".format(hparams["data"]["name"]))
 
-    tr_vids = list(data.keys())
-    val_vids = list(valdata.keys())
-
-    # Check that there are no duplicates
-    assert(len(list(set(tr_vids+val_vids))) == (len(tr_vids)+len(val_vids)))
-
-    data = {**data, **valdata}
-
-    dataset = TheDataset(data)
-    dataset.class_weights = class_weights
-    
     hparams["model"]["init_tau"] = 1  ###  init_tau(data)
     a_patid = list(data.keys())[0]
     
@@ -259,7 +296,7 @@ def main(args):
         
         # Flag some labels as not usable by the trainer
         if "ignore_labels" in hparams["training"]["loss"]:
-            all_tr_vids = torch.tensor([batch["vid"] for batch in training_set])
+            all_tr_vids = torch.tensor([batch["id"] for batch in training_set])
             all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
             n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
             ltrainer.use_labels_vids = all_tr_vids[:n_labels]

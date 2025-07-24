@@ -121,17 +121,17 @@ class lTrainer(L.LightningModule):
         ###  rnumber = random.uniform(0,1)
         
         # Default: use all labels and no SSL
-        use_label = torch.ones(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)#True
+        use_label = torch.ones(batch["id"].shape[0],dtype=bool,device=batch["id"].device)#True
         use_ssl = False
 
         # Use SSL as pre-training
         if (self.current_epoch < self.hparams["training"]["n_epochs_gpt"]):
             use_ssl   = True
-            use_label = torch.zeros(batch["vid"].shape[0],dtype=bool,device=batch["vid"].device)
+            use_label = torch.zeros(batch["id"].shape[0],dtype=bool,device=batch["id"].device)
         
         else:
             if ("ignore_labels" in self.loss_fun_name):
-                use_label = torch.isin(batch["vid"], self.use_labels_vids.to(device=batch["vid"].device))
+                use_label = torch.isin(batch["id"], self.use_labels_vids.to(device=batch["id"].device))
                 use_ssl   = "gen" in self.loss_fun_name
         
         if use_ssl or use_label.any():
