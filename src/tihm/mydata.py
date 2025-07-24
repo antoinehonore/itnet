@@ -51,7 +51,7 @@ def get_tihm_modalities(df, timeline, target, groups, ref_date=None):
     calX = {}
     idx = {}
     timelines = {}
-    i_targets = np.isnan(target).sum(1)==0
+    i_targets = np.isnan(target)==0
     targets = torch.from_numpy(target[i_targets]).to(dtype=DTYPE)
     inference_timeline = torch.from_numpy((pd.to_datetime(timeline[i_targets])-ref_date).total_seconds().values/3600/24).to(dtype=DTYPE)
     
@@ -103,7 +103,7 @@ def get_tihm_data(patients,groups,columns, ref_date=None):
         
         timeline = v["timeline"]
         thedata = v["data"]
-        target = v["target"][:, [1]] >= 1
+        target = v["target"][:, 1] >= 1
         df = pd.DataFrame(data=thedata, columns=columns)
         data[patid] = get_tihm_modalities(df, timeline, target, groups,ref_date=ref_date)
     a_patid = list(data.keys())[0]
