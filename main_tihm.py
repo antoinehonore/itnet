@@ -6,7 +6,7 @@ from src.fusionattn import FusionAttn
 import torch.nn.functional as F
 import torch.nn as nn
 from utils_tbox.utils_tbox import read_pklz, write_pklz
-from src.tihm.mydata import TheDataset
+from src.tihm.mydata import TheDataset,get_tihm_modalities,to_dict,get_tihm_data, get_varaible_group
 from src.tihm.trainer import lTrainer
 
 import os 
@@ -35,82 +35,6 @@ from scipy.signal.windows import gaussian
 
 from sklearn.preprocessing import LabelEncoder
 
-
-groups_stems = ["heart_rate", "respiratory_rate", "Body Temperature", 
-                "Body weight", "Diastolic blood pressure","Heart rate",
-                "O/E - muscle mass", "Skin Temperature", "Systolic blood pressure","Total body water"]
-
-
-
-def get_modalities(df, timeline, target, groups, ref_date=None):
-    """Group data variables according to "groups"""
-    DTYPE = torch.float32
-    assert(timeline.shape[0] == df.shape[0])
-    if ref_date is None:
-        ref_date = datetime(year=2019, month=1, day=1)
-    calX = {}
-    idx = {}
-    timelines = {}
-    i_targets = np.isnan(target).sum(1)==0
-    targets = torch.from_numpy(target[i_targets]).to(dtype=DTYPE)
-    inference_timeline = torch.from_numpy((pd.to_datetime(timeline[i_targets])-ref_date).total_seconds().values/3600/24).to(dtype=DTYPE)
-    
-    for modality_name, vv in groups.items():
-        theidx = (df[vv].isna().sum(1) == 0).values
-        idx[modality_name]        = torch.from_numpy(theidx).to(dtype=DTYPE)
-        calX[modality_name]       = torch.from_numpy(df[vv][theidx].values).to(dtype=DTYPE)
-        timelines[modality_name]  = torch.from_numpy((pd.to_datetime(timeline[theidx])-ref_date).total_seconds().values/3600/24).to(dtype=DTYPE)
-        if timelines[modality_name].shape[0]>0:
-            diff =  torch.diff(timelines[modality_name], prepend=torch.tensor([timelines[modality_name][0].item()])).to(dtype=DTYPE)
-            calX[modality_name] = torch.cat([calX[modality_name], diff.unsqueeze(-1), timelines[modality_name].unsqueeze(-1)],axis=1).to(dtype=DTYPE)
-        else:# No data at all ?
-            calX[modality_name] = torch.zeros((1,len(groups[modality_name])+2))
-            timelines[modality_name]= torch.zeros((1))+inference_timeline[0]
-
-    return {"timelines": timelines, "calX":calX, "idx":idx,
-            "inference_timeline":inference_timeline,"targets":targets}
-
-def to_dict(train_dataset,test_dataset):
-    """Group data per patient"""
-    train_patients = {}
-    for patid in np.unique(train_dataset.train_patient_id):
-        train_patients[patid] = {}
-        idx = train_dataset.train_patient_id==patid
-        train_patients[patid]["timeline"] = train_dataset.train_date[idx]
-        train_patients[patid]["data"] = train_dataset.train_data[idx]
-        train_patients[patid]["target"] = train_dataset.train_target[idx]
-
-    test_patients = {}
-    for patid in np.unique(test_dataset.test_patient_id):
-        test_patients[patid] = {}
-        idx = test_dataset.test_patient_id==patid
-        test_patients[patid]["timeline"] = test_dataset.test_date[idx]
-        test_patients[patid]["data"] = test_dataset.test_data[idx]
-        test_patients[patid]["target"] = test_dataset.test_target[idx]
-    return train_patients, test_patients
-
-def get_data(patients,groups,columns, ref_date=None):
-    if ref_date is None:
-        ref_date = min([min(v["timeline"]) for v in patients.values()])
-        ref_date = datetime(year=ref_date.year,month=ref_date.month,day=ref_date.day)
-        
-    data = {}
-    for i, (patid, v) in enumerate(patients.items()):
-        if i == -1:
-            fig, ax = plt.subplots()
-            ax.imshow(v["target"], aspect="auto")
-            fig, ax = plt.subplots()
-            ax.imshow(v["data"], aspect="auto")
-        
-        timeline = v["timeline"]
-        thedata = v["data"]
-        target = v["target"][:, [1]] >= 1
-        df = pd.DataFrame(data=thedata, columns=columns)
-        data[patid] = get_modalities(df, timeline, target, groups,ref_date=ref_date)
-    a_patid = list(data.keys())[0]
-    data_dimensions = {m: data[a_patid]["calX"][m].shape[1] for m in data[a_patid]["calX"].keys()}
-
-    return data, data_dimensions, ref_date
 
 class Predictor(torch.nn.Module):
     def __init__(self, hparams):
@@ -141,14 +65,6 @@ def get_modality_dimensions(data_dimensions, model_params):
         modalities_dimension["k"] = {m: d for m, d in data_dimensions.items()}
         modalities_dimension["v"] = {m: d for m, d in data_dimensions.items()}
     return modalities_dimension
-
-def get_variable_groups(train_dataset):
-        
-    variable_groups = {k: [v for v in train_dataset.feature_names if k in v] for k in groups_stems}
-    others = {v:[v] for v in train_dataset.feature_names if not v in list(set( sum(list(variable_groups.values()),[]) ))}
-    if len(others) > 0:
-        variable_groups = {**variable_groups, **others}
-    return variable_groups
 
 def patient_timesplit(patid, d, n_splits=5):
     istart = max([0, d["inference_timeline"].shape[0]-7*5])
@@ -246,8 +162,8 @@ def main(args):
 
     variable_groups = get_variable_groups(train_dataset)
 
-    data, data_dimensions, ref_date = get_data(train_patients, variable_groups, train_dataset.feature_names)
-    test_data, _, _ = get_data(test_patients, variable_groups, test_dataset.feature_names, ref_date=ref_date)
+    data, data_dimensions, ref_date = get_tihm_data(train_patients, variable_groups, train_dataset.feature_names)
+    test_data, _, _ = get_tihm_data(test_patients, variable_groups, test_dataset.feature_names, ref_date=ref_date)
 
     model_params["modalities_dimension"] = get_modality_dimensions(data_dimensions, model_params)
 
