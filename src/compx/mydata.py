@@ -22,7 +22,7 @@ class TheDataset(Dataset):
         return len(self.ids)
 
     def __getitem__(self, idx):
-        thedata = self.data[self.vids[idx]]
+        thedata = self.data[self.ids[idx]]
         thedata["class_weights"] = self.class_weights  ###[thedata["targets"].int()]
         thedata["id"] = self.ids[idx]
         thedata["data"]["reference"] = thedata["data"]["reference"].reshape(-1,1)
