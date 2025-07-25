@@ -117,12 +117,15 @@ class ITGPT(torch.nn.Module):
             self.norm_funcs = apply_domain_normalization#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
         elif self.normalization == "domain1":
             self.norm_funcs = apply_domain1_normalization#torch.nn.ModuleDict({mname: apply_log for mname,dims in hparams["modalities_dimension"].items()})
+        elif self.normalization == "identity":
+            self.norm_funcs = apply_identity_normalization
         else:
             raise Exception("Unknown normalization={}".format(self.normalization))
+        
         self.reset_running_slopes()
 
     def reset_running_slopes(self):
-        self.running_slopes = {m: [] for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
+        self.running_slopes =  {m: [] for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
         self.training_slopes = {m: None for m in self.hparams["modalities_dimension"] if (m != "specs") and (m != "reference")}
 
     def normalize(self, batch):

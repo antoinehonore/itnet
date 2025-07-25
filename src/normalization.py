@@ -31,3 +31,19 @@ def apply_domain1_normalization(m, t, eps=1e-5):
     #
     t = apply_log(t)
     return t
+
+def apply_identity_normalization(m, t, eps=1e-5):
+    # Initial data dim
+    #d = (t.shape[-1])#//2
+    # Remove the time things
+    #t[...,-2:] *=0 # t[...,-2:] * torch.zeros(t[...,-2:].shape,device=t.device,dtype=t.dtype)
+    
+    # Remove non-normalized data
+    #t[...,:d]*=0
+    #if (m in cat_variables.keys()):
+        # Normalize histograms
+    #    t = t / (t.sum(-1).unsqueeze(-1)+eps)
+    
+    #
+    #t = apply_log(t)
+    return t
