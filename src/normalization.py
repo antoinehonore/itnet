@@ -32,7 +32,7 @@ def apply_domain1_normalization(m, t, eps=1e-5):
     t = apply_log(t)
     return t
 
-def apply_identity_normalization(m, t, eps=1e-5):
+def apply_identity_normalization(t, eps=1e-5):
     # Initial data dim
     #d = (t.shape[-1])#//2
     # Remove the time things

@@ -193,7 +193,7 @@ class ITGPT(torch.nn.Module):
     def apply_norm(self, m, batch):
         if self.normalization == "batch":
             return self.apply_batchnorm(m, batch)
-        
+
         elif self.normalization == "log":
             return self.norm_funcs(batch[m].data)
 
