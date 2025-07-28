@@ -35,6 +35,8 @@ from sklearn.preprocessing import LabelEncoder
 import warnings
 warnings.filterwarnings("ignore")
 
+
+
 def initialize_all_parameters_to_zero(model: nn.Module):
     for param in model.parameters():
         nn.init.normal_(param)
@@ -55,20 +57,43 @@ def get_modality_dimensions(data_dimensions, model_params):
         modalities_dimension = {mname: dict(in_q=1, in_kv=d_in, out_qk=model_params["d_qk"], out_v=model_params["d_out"]) for mname,d_in in data_dimensions.items()}
     return modalities_dimension
 
+import copy
+
 def patient_timesplit(patid, d, n_splits=5):
-    istart = max([0, d["inference_timeline"].shape[0]-7*5])
+    istart = max([0, d["data"]["reference"].shape[0]-7*5])
     ### indices = {patid+"_{}".format(i+1): indexes for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"]))}
     
-    indices = {patid+"_{}".format(i+1): (np.concatenate([np.arange(istart), istart+indexes[0]]), istart+indexes[1]) for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["inference_timeline"][istart:]))}
-    out_tr = {k:  dict(d) for k in indices.keys()}
-    out_val = {k:  dict(d) for k in indices.keys()}
+    indices = {str(patid)+"_{}".format(i+1): 
+        (np.concatenate([np.arange(istart), istart+indexes[0]]), istart+indexes[1]) 
+        for i,indexes in enumerate(TimeSeriesSplit(n_splits).split(d["data"]["reference"][istart:]))}
+    out_tr = {k:  copy.deepcopy(dict(d)) for k in indices.keys()}
+    out_val = {k:  copy.deepcopy(dict(d)) for k in indices.keys()}
     for k in indices.keys():
-        out_tr[k]["inference_timeline"] = out_tr[k]["inference_timeline"][indices[k][0]]
-        out_tr[k]["targets"] = out_tr[k]["targets"][indices[k][0]]
-        out_val[k]["inference_timeline"] = out_val[k]["inference_timeline"][indices[k][1]]#tr_inference_timeline[i]
-        out_val[k]["targets"] = out_val[k]["targets"][indices[k][1]]
+        out_tr[k]["data"]["reference"] = out_tr[k]["data"]["reference"].clone()[indices[k][0]]
+        out_tr[k]["targets_int"] = out_tr[k]["targets_int"].clone()[indices[k][0]]
+        out_val[k]["data"]["reference"] = out_val[k]["data"]["reference"].clone()[indices[k][1]]#tr_inference_timeline[i]
+        out_val[k]["targets_int"] = out_val[k]["targets_int"].clone()[indices[k][1]]
 
     return out_tr, out_val
+
+
+def get_tr_val_index_lists_tihm(dataset,TheDataset,k=5):
+    data = dataset.data
+    all_training_data = {}
+    all_validation_data = {}
+    for patid, d in data.items():
+        if d["data"]["reference"].shape[0]>5:
+            patient_training, patient_validation = patient_timesplit(patid, d,n_splits=k)
+            all_training_data = {**all_training_data,**patient_training}
+            all_validation_data = {**all_validation_data,**patient_validation}
+
+    training_dataset = TheDataset(all_training_data)
+    validation_dataset = TheDataset(all_validation_data)
+
+    tr_fold_indices = [[i for i,k in enumerate(all_training_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    val_fold_indices = [[i for i,k in enumerate(all_validation_data.keys()) if k.endswith(str(ifold)) ] for ifold in range(1,6)]
+    return training_dataset, validation_dataset, zip(tr_fold_indices, val_fold_indices)
+
 
 def get_tr_val_index_lists(dataset, k=5):
     vids = np.array(dataset.ids)
@@ -262,19 +287,24 @@ def main(args):
     
     # Takes the modality dimensions and write them to the config file
     hparams["model"]["modalities_dimension"] = get_modality_dimensions(data_dimensions, hparams["model"])
+    if hparams["data"]["name"] == "compx":
+        tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])
+        training_dataset = dataset
+        validation_dataset = dataset 
     
-    tr_val_index_lists = get_tr_val_index_lists(dataset, k=hparams["training"]["kfold"])
-    test_set =  TheDataset(testdata)
-    test_set.class_weights = class_weights
+    elif hparams["data"]["name"] == "tihm":
+        training_dataset, validation_dataset, tr_val_index_lists = get_tr_val_index_lists_tihm(dataset, TheDataset, k=hparams["training"]["kfold"])
 
+    else:
+        raise Exception("Dataset name={} is NYI.".format(hparams["data"]["name"]))
+    
     loaders_kwargs = dict(num_workers=args.j, pin_memory=args.j>0, persistent_workers=args.j>0)
-    test_dataloader = DataLoader(test_set, batch_size=hparams["data"]["batch_size"], shuffle=False,**loaders_kwargs)
     
     all_fold_results = []
 
     for fold_idx, (fold_train_index, fold_val_index) in enumerate(tr_val_index_lists): ###  enumerate(GroupKFold(n_splits=5).split(dataset, groups=groups)):
-        training_set = Subset(dataset, fold_train_index)
-        val_set_internal = Subset(dataset, fold_val_index)
+        training_set = Subset(training_dataset, fold_train_index)
+        val_set_internal = Subset(validation_dataset, fold_val_index)
         
         train_dataloader = DataLoader(training_set, batch_size=hparams["data"]["batch_size"], shuffle=True, collate_fn=my_collate,**loaders_kwargs)
         val_internal_dataloader = DataLoader(val_set_internal, batch_size=hparams["data"]["batch_size"], shuffle=False, collate_fn=my_collate, **loaders_kwargs)
