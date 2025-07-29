@@ -324,11 +324,17 @@ def main(args):
         
         ltrainer = lTrainer(model=model, hparams=hparams)
         
-        # Flag some labels as not usable by the trainer
+        # Flag some labels as usable by the trainer
         if "ignore_labels" in hparams["training"]["loss"]:
-            all_tr_vids = torch.tensor([batch["id"] for batch in training_set])
-            all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
-            n_labels = int(hparams["training"]["use_p_label"] * all_tr_vids.shape[0])
+            all_batches = [batch for batch in training_set]
+            all_batches=sorted(all_batches, key=lambda batch:batch["targets_int"].sum())[::-1]
+            all_tr_vids = torch.tensor([batch["id"] for batch in all_batches])
+            
+            #[(batch["id"],batch["targets_int"].unique()) for batch in training_set]
+            #sorted(all_tr_vids.tolist(),key=lambda 
+            
+            #all_tr_vids = all_tr_vids[torch.randperm(all_tr_vids.shape[0])]
+            n_labels = int(np.ceil(hparams["training"]["use_p_label"] * all_tr_vids.shape[0]))
             ltrainer.use_labels_vids = all_tr_vids[:n_labels]
 
         log_every_n_steps = len(train_dataloader)//100
