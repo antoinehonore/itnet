@@ -11,7 +11,7 @@ from torchmetrics import ConfusionMatrix
 from torcheval.metrics.functional import binary_auprc
 import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
-from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc,multiclass_auroc
+from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc, multiclass_auroc, binary_f1_score, binary_precision, binary_recall, binary_auroc, binary_auprc, binary_accuracy
 
 # Matplotlib unique combinations of color (colorblind friendly), marker and styles, from ChatGPT
 color_marker_style = [
@@ -183,7 +183,9 @@ class lTrainer(L.LightningModule):
         keep = yclass!=logits.shape[-1]
         logits = logits[keep].to(torch.float)
         yclass = yclass[keep].long()
-        
+        num_classes = logits.shape[-1]
+
+        # Create onehot encoded labels
         y = torch.eye(logits.shape[-1], device=logits.device)[yclass]
 
         yhat_sigmoid = torch.nn.functional.sigmoid(logits)
@@ -192,13 +194,21 @@ class lTrainer(L.LightningModule):
         thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
         thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
-        thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="micro")
-        thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["Prec"+suffix] =    multiclass_precision(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="micro", num_classes=logits.shape[-1])
-        thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, num_classes=logits.shape[-1])
-        thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, num_classes=logits.shape[-1])
-        
+        if num_classes==2:
+            thescores["Acc"+suffix] = binary_accuracy(logits.argmax(-1), yclass)
+            thescores["F1score"+suffix] = binary_f1_score(logits, yclass)
+            thescores["Prec"+suffix] =    binary_precision(logits, yclass)
+            thescores["Recall"+suffix] =  binary_recall(logits, yclass)
+            thescores["AUROC"+suffix] =   binary_auroc(logits, yclass)
+            thescores["AUPRC"+suffix] =   binary_auprc(logits, yclass)
+        else:
+            thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="macro", num_classes=num_classes)
+            thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="macro", num_classes=num_classes)
+            thescores["Prec"+suffix] =    multiclass_precision(logits, yclass, average="macro", num_classes=num_classes)
+            thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="macro", num_classes=num_classes)
+            thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, average="macro", num_classes=num_classes)
+            thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, average="macro", num_classes=num_classes)
+            
         cm = self.compute_confmat(yhat_softmax, yclass)
         
         thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device)[:cm.shape[0],:cm.shape[1]] * cm).sum() / cm.sum()
