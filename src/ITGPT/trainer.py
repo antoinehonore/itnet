@@ -194,13 +194,14 @@ class lTrainer(L.LightningModule):
         thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
         thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
-        if num_classes==2:
-            thescores["Acc"+suffix] = binary_accuracy(logits.argmax(-1), yclass)
-            thescores["F1score"+suffix] = binary_f1_score(logits, yclass)
-            thescores["Prec"+suffix] =    binary_precision(logits, yclass)
-            thescores["Recall"+suffix] =  binary_recall(logits, yclass)
-            thescores["AUROC"+suffix] =   binary_auroc(logits, yclass)
-            thescores["AUPRC"+suffix] =   binary_auprc(logits, yclass)
+        if num_classes == 2:
+            pred = yhat_softmax[:,-1]
+            thescores["Acc"+suffix] = binary_accuracy(pred, yclass)
+            thescores["F1score"+suffix] = binary_f1_score(pred, yclass)
+            thescores["Prec"+suffix] =    binary_precision(pred, yclass)
+            thescores["Recall"+suffix] =  binary_recall(pred, yclass)
+            thescores["AUROC"+suffix] =   binary_auroc(pred, yclass)
+            thescores["AUPRC"+suffix] =   binary_auprc(pred, yclass)
         else:
             thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="macro", num_classes=num_classes)
             thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="macro", num_classes=num_classes)
@@ -208,7 +209,7 @@ class lTrainer(L.LightningModule):
             thescores["Recall"+suffix] =  multiclass_recall(logits, yclass, average="macro", num_classes=num_classes)
             thescores["AUROC"+suffix] =   multiclass_auroc(logits, yclass, average="macro", num_classes=num_classes)
             thescores["AUPRC"+suffix] =   multiclass_auprc(logits, yclass, average="macro", num_classes=num_classes)
-            
+        
         cm = self.compute_confmat(yhat_softmax, yclass)
         
         thescores["cost" + suffix] = (self.cost_matrix.to(device=cm.device)[:cm.shape[0],:cm.shape[1]] * cm).sum() / cm.sum()
