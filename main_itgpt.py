@@ -327,7 +327,7 @@ def main(args):
         # Flag some labels as usable by the trainer
         if "ignore_labels" in hparams["training"]["loss"]:
             all_batches = [batch for batch in training_set]
-            all_batches=sorted(all_batches, key=lambda batch:batch["targets_int"].sum())[::-1]
+            all_batches = sorted(all_batches, key=lambda batch:batch["targets_int"].sum())[::-1]
             all_tr_vids = torch.tensor([batch["id"] for batch in all_batches])
             
             #[(batch["id"],batch["targets_int"].unique()) for batch in training_set]

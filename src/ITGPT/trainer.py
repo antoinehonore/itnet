@@ -195,7 +195,7 @@ class lTrainer(L.LightningModule):
         thescores = {"mse" + suffix:  torchmetrics.functional.mean_squared_error(yhat_softmax, y)}
         thescores["BCE" + suffix] =   torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
         thescores["CE" + suffix] =    torch.nn.functional.cross_entropy(logits, yclass.long())
-        if num_classes == 2:
+        if num_classes == 0:
             pred = yhat_softmax[:,-1]
             thescores["Acc"+suffix] = binary_accuracy(pred, yclass)
             thescores["F1score"+suffix] = binary_f1_score(pred, yclass)
