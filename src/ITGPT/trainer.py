@@ -11,7 +11,8 @@ from torchmetrics import ConfusionMatrix
 from torcheval.metrics.functional import binary_auprc
 import numpy as np
 from torcheval.metrics.functional.classification import topk_multilabel_accuracy
-from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc, multiclass_auroc, binary_f1_score, binary_precision, binary_recall, binary_auroc, binary_auprc, binary_accuracy
+from torcheval.metrics.functional import multiclass_accuracy,multiclass_f1_score,multiclass_precision, multiclass_recall,multiclass_auprc, multiclass_auroc, \
+                                    binary_f1_score, binary_precision, binary_recall, binary_auroc, binary_auprc, binary_accuracy, binary_confusion_matrix
 
 # Matplotlib unique combinations of color (colorblind friendly), marker and styles, from ChatGPT
 color_marker_style = [
@@ -202,6 +203,8 @@ class lTrainer(L.LightningModule):
             thescores["Recall"+suffix] =  binary_recall(pred, yclass)
             thescores["AUROC"+suffix] =   binary_auroc(pred, yclass)
             thescores["AUPRC"+suffix] =   binary_auprc(pred, yclass)
+            CM = binary_confusion_matrix(pred, yclass).cpu().numpy()
+
         else:
             thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="macro", num_classes=num_classes)
             thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="macro", num_classes=num_classes)
