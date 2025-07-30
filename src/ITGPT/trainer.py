@@ -203,8 +203,8 @@ class lTrainer(L.LightningModule):
             thescores["Recall"+suffix] =  binary_recall(pred, yclass)
             thescores["AUROC"+suffix] =   binary_auroc(pred, yclass)
             thescores["AUPRC"+suffix] =   binary_auprc(pred, yclass)
-            CM = binary_confusion_matrix(pred, yclass).cpu().numpy()
-
+            (tn,fp),(fn,tp) = binary_confusion_matrix(pred, yclass)
+            thescores["Spec"+suffix] = tn/(tn+fp)
         else:
             thescores["Acc"+suffix] =     multiclass_accuracy(logits, yclass, average="macro", num_classes=num_classes)
             thescores["F1score"+suffix] = multiclass_f1_score(logits, yclass, average="macro", num_classes=num_classes)
